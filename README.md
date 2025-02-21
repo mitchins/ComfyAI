@@ -157,7 +157,7 @@ tail -f custom_nodes/ComfyNodes/transformer_worker/worker.log
 
 ## **📜 License**  
 
-This project is licensed under the **MIT License**. See `LICENSE` for details.  
+This project is licensed under the **AGPL-3.0 license**. See `LICENSE` for details.  
 
 ---
 
