@@ -35,3 +35,18 @@ def test_chat_endpoint_invalid_json(monkeypatch):
         headers={"Content-Type": "application/json"},
     )
     assert resp.status_code == 400
+
+
+def test_chat_endpoint_with_two_images(monkeypatch):
+    client = _client(monkeypatch)
+    msg = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "hi"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,a"}},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,b"}},
+        ],
+    }
+    resp = client.post("/v1/chat/completions", json={"model": "test", "messages": [msg]})
+    assert resp.status_code == 200
+    assert resp.json()["choices"][0]["message"]["content"] == "positive"
