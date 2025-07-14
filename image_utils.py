@@ -5,7 +5,7 @@ except Exception:  # pragma: no cover - optional
 import logging
 from PIL import Image
 import io
-import logging
+import base64
 
 
 def image_to_bytes(image_tensor):
@@ -42,3 +42,9 @@ def tensor_to_pil(image):
     logging.debug(f"Processed image shape: {image_np.shape}")
 
     return Image.fromarray(image_np)
+
+
+def image_to_base64(image_tensor) -> str:
+    """Convert a tensor to a base64 encoded PNG string."""
+    data = image_to_bytes(image_tensor)
+    return base64.b64encode(data).decode("utf-8")

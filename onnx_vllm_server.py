@@ -37,6 +37,21 @@ def classify(text: str) -> str:
     return str(outputs[0])
 
 
+def extract_text(content: Any) -> str:
+    """Extract text segments from an OpenAI-style message content."""
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+            elif isinstance(item, str):
+                parts.append(item)
+        return " ".join(parts)
+    elif isinstance(content, str):
+        return content
+    return ""
+
+
 @app.post("/v1/chat/completions")
 async def chat(request: Request):
     try:
@@ -49,7 +64,8 @@ async def chat(request: Request):
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=e.errors())
 
-    text = req.messages[-1].get("content", "") if req.messages else ""
+    content = req.messages[-1].get("content", "") if req.messages else ""
+    text = extract_text(content)
     result = classify(text)
     return {
         "id": "cmpl-001",
