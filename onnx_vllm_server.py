@@ -49,7 +49,15 @@ async def chat(request: Request):
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=e.errors())
 
-    text = req.messages[-1].get("content", "") if req.messages else ""
+    text = ""
+    if req.messages:
+        content = req.messages[-1].get("content", "")
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    text += part.get("text", "")
+        else:
+            text = str(content)
     result = classify(text)
     return {
         "id": "cmpl-001",
