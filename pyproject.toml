@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ComfyNodes*", "transformer_worker*", "util*"]
+include = ["ComfyNodes*"]
 
 [tool.setuptools]
 py-modules = [
@@ -18,7 +18,6 @@ py-modules = [
     "string_utils",
     "image_utils",
     "conditional_save_image",
-    "dummy_worker",
 ]
 
 [project.optional-dependencies]
