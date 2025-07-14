@@ -1,4 +1,12 @@
-import rapidfuzz.fuzz as fuzz
+try:
+    import rapidfuzz.fuzz as fuzz
+except Exception:  # pragma: no cover - optional
+    class _Dummy:
+        @staticmethod
+        def ratio(a, b):
+            return 100 if a == b else 0
+
+    fuzz = _Dummy()
 
 def fuzzy_match_bool(output_text):
     # Make sure final output tensors are aligned to prevent further mismatches

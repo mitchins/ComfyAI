@@ -1,4 +1,7 @@
-import torch
+try:
+    import torch
+except Exception:  # pragma: no cover - optional
+    torch = None
 import logging
 from PIL import Image
 import io
@@ -12,7 +15,7 @@ def image_to_bytes(image_tensor):
         image_pil.save(buffer, format="PNG")  # ✅ Save as PNG bytes
         return buffer.getvalue()
     
-def tensor_to_pil(image: torch.Tensor) -> Image.Image:
+def tensor_to_pil(image) -> Image.Image:
     """Convert a PyTorch tensor (B, C, H, W) or (C, H, W) to a PIL image (H, W, C)."""
     if image is None:
         return None  # Handle missing images safely
