@@ -1,5 +1,8 @@
-import torch
-from torchvision import transforms  # If needed, add specific modules from torchvision here
+try:
+    import torch
+    from torchvision import transforms  # If available
+except Exception:  # pragma: no cover - optional dependency
+    torch = None
 import time
 import logging
 import multiprocessing as mp
@@ -241,7 +244,10 @@ class VisionLLMQuery:
     def get_available_gpus(cls):
         """Lazily fetch the available CUDA devices (only once)."""
         if cls._AVAILABLE_GPUS is None:
-            cls._AVAILABLE_GPUS = [f"cuda:{i}" for i in range(torch.cuda.device_count())] or ["cpu"]
+            if torch is not None:
+                cls._AVAILABLE_GPUS = [f"cuda:{i}" for i in range(torch.cuda.device_count())] or ["cpu"]
+            else:
+                cls._AVAILABLE_GPUS = ["cpu"]
         return cls._AVAILABLE_GPUS
 
     @classmethod
@@ -337,7 +343,8 @@ class VisionLLMQuery:
                 return results  # Success!
 
             attempt += 1
-            torch.cuda.empty_cache()  # Clear VRAM between retries
+            if torch is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()  # Clear VRAM between retries
 
         logging.error(f"❌ All {max_retries} inference attempts failed. Skipping.")
         return None  # Returns None instead of crashing

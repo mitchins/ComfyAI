@@ -1,4 +1,7 @@
-import torch
+try:
+    import torch
+except Exception:  # pragma: no cover - optional dependency
+    torch = None
 import logging
 import sys
 import io
@@ -46,6 +49,8 @@ logger.addHandler(console_handler)
 
 def load_model(gpu_device, model_name):
     """Loads the model inside the worker process and ensures it uses only the assigned GPU."""
+    if torch is None:
+        raise ImportError("torch is required for transformer_worker")
     logger.info(f"🖥️ Loading model '{model_name}' on {gpu_device} inside worker...")
     torch.cuda.set_device(gpu_device)
 
@@ -104,6 +109,8 @@ def run_inference(task, processor, model, gpu_device):
 
     logger.debug("🧠 Running model inference...")
     start_time = time.time()
+    if torch is None:
+        raise ImportError("torch is required for transformer_worker")
     with torch.no_grad():
         generated_ids = model.generate(**inputs, max_new_tokens=128)
     end_time = time.time()

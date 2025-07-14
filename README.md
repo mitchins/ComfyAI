@@ -137,12 +137,25 @@ Then, **select it inside the ComfyUI node settings**.
 ---
 
 ### **📜 Logging**  
-Logs are saved to `worker.log` in the package directory.  
+Logs are saved to `worker.log` in the package directory.
 
-📌 **Monitor logs in real-time:**  
+📌 **Monitor logs in real-time:**
 ```bash
 tail -f custom_nodes/ComfyNodes/transformer_worker/worker.log
 ```
+
+### Optional ONNX OpenAI Server
+
+An example OpenAI compatible server using a lightweight ONNX model is provided
+in `onnx_openai_server.py`. This server is **optional** and not required for the
+default nodes. Start it with:
+
+```bash
+python onnx_openai_server.py
+```
+
+Then set `OPENAI_API_BASE` to point at the running server and use the
+`OpenAIQuery` node to send requests.
 
 ---
 
