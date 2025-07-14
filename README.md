@@ -47,7 +47,10 @@ Ensure you have the following installed:
 cd custom_nodes
 git clone https://github.com/mitchins/ComfyAI.git
 cd ComfyAI
-pip install -r requirements.txt
+pip install .
+# optional extras
+# pip install .[onnx]  # for ONNX server support
+# pip install .[dev]   # include test and torch dependencies
 ```
 
 ---
@@ -132,7 +135,18 @@ If you want to use a **Llava-7B model**, make sure it’s downloaded:
 huggingface-cli download unsloth/llava-1.5-7b-hf-bnb-4bit --all
 ```
 
-Then, **select it inside the ComfyUI node settings**.  
+Then, **select it inside the ComfyUI node settings**.
+
+### 🛰️ Running the optional ONNX server
+Use `onnx_vllm_server.py` if you want a lightweight OpenAI compatible endpoint.
+It only requires `fastapi` and `onnxruntime` and can be started like so:
+
+```bash
+python onnx_vllm_server.py
+```
+
+The client node accepts any OpenAI compatible endpoint URL, so you can point it
+to this server, Ollama, or the official OpenAI API.
 
 ---
 

@@ -1,12 +1,18 @@
-from .vllm_query import VisionLLMQuery
-from .conditional_save_image import ConditionalSaveImage
+import os
 
-NODE_CLASS_MAPPINGS = {
-    "VisionLLMQuery": VisionLLMQuery,
-    "ConditionalSaveImage": ConditionalSaveImage
-}
+if os.environ.get("UNIT_TEST_MODE") != "1":
+    from .vllm_query import VisionLLMQuery
+    from .conditional_save_image import ConditionalSaveImage
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "VisionLLMQuery": "Vision LLM Query",
-    "ConditionalSaveImage": "Conditional Save Image",
-}
+    NODE_CLASS_MAPPINGS = {
+        "VisionLLMQuery": VisionLLMQuery,
+        "ConditionalSaveImage": ConditionalSaveImage,
+    }
+
+    NODE_DISPLAY_NAME_MAPPINGS = {
+        "VisionLLMQuery": "Vision LLM Query",
+        "ConditionalSaveImage": "Conditional Save Image",
+    }
+else:
+    NODE_CLASS_MAPPINGS = {}
+    NODE_DISPLAY_NAME_MAPPINGS = {}
