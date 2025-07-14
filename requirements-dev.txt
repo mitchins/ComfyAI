@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=7.0
+pillow>=9.0
+numpy>=1.23
