@@ -1,5 +1,12 @@
-import torch
-from torchvision import transforms  # If needed, add specific modules from torchvision here
+try:
+    import torch  # type: ignore
+except Exception:  # pragma: no cover - optional heavy dep
+    torch = None  # type: ignore
+
+try:
+    from torchvision import transforms  # type: ignore
+except Exception:  # pragma: no cover - optional heavy dep
+    transforms = None  # type: ignore
 import time
 import logging
 import multiprocessing as mp
@@ -14,12 +21,13 @@ import time
 import sys
 import csv
 from datetime import datetime
-from .image_utils import image_to_bytes
-from .string_utils import fuzzy_match_bool
+from image_utils import image_to_bytes
+from string_utils import fuzzy_match_bool
 
-from .util.task_data import TaskData
-from .transformer_worker.transformer_worker import list_cached_vision_models
-from .transformer_worker.helpers import has_model_issues, get_model_issues, strip_warning_prefix
+from util.task_data import TaskData
+from transformer_worker.transformer_worker import list_cached_vision_models
+from transformer_worker.helpers import has_model_issues, get_model_issues, strip_warning_prefix
+from openai_client import chat_completion
 
 LOG_FILE = os.path.join(os.path.dirname(__file__), "logs", "inference_results.csv")
 
@@ -241,7 +249,10 @@ class VisionLLMQuery:
     def get_available_gpus(cls):
         """Lazily fetch the available CUDA devices (only once)."""
         if cls._AVAILABLE_GPUS is None:
-            cls._AVAILABLE_GPUS = [f"cuda:{i}" for i in range(torch.cuda.device_count())] or ["cpu"]
+            if torch and torch.cuda.is_available():
+                cls._AVAILABLE_GPUS = [f"cuda:{i}" for i in range(torch.cuda.device_count())] or ["cpu"]
+            else:
+                cls._AVAILABLE_GPUS = ["cpu"]
         return cls._AVAILABLE_GPUS
 
     @classmethod
@@ -266,6 +277,9 @@ class VisionLLMQuery:
             },
             "optional": {
                 "reference_image": ("IMAGE",),  # Optional reference image
+                "api_endpoint": ("STRING", {"default": "", "multiline": False}),
+                "api_model": ("STRING", {"default": "gpt-3.5-turbo", "multiline": False}),
+                "api_key": ("STRING", {"default": "", "multiline": False}),
             }
         }
 
@@ -300,6 +314,15 @@ class VisionLLMQuery:
         
         image = inputs["image"]
         text_query = inputs.get("text_query", "Describe the image.")
+
+        api_endpoint = inputs.get("api_endpoint", "").strip()
+        if api_endpoint:
+            api_model = inputs.get("api_model", "gpt-3.5-turbo")
+            api_key = inputs.get("api_key", "") or None
+            messages = [{"role": "user", "content": text_query}]
+            response_text = chat_completion(api_endpoint, api_model, messages, api_key=api_key)
+            bool_output = fuzzy_match_bool(response_text)
+            return response_text, bool_output, int(bool_output)
 
         reference_image = inputs.get("reference_image", None)  # Optional!
         max_retries = 3
@@ -337,7 +360,8 @@ class VisionLLMQuery:
                 return results  # Success!
 
             attempt += 1
-            torch.cuda.empty_cache()  # Clear VRAM between retries
+            if torch and torch.cuda.is_available():
+                torch.cuda.empty_cache()  # Clear VRAM between retries
 
         logging.error(f"❌ All {max_retries} inference attempts failed. Skipping.")
         return None  # Returns None instead of crashing
