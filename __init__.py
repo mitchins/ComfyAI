@@ -1,5 +1,5 @@
-from .vllm_query import VisionLLMQuery
-from .conditional_save_image import ConditionalSaveImage
+from vllm_query import VisionLLMQuery
+from conditional_save_image import ConditionalSaveImage
 
 NODE_CLASS_MAPPINGS = {
     "VisionLLMQuery": VisionLLMQuery,

@@ -132,7 +132,24 @@ If you want to use a **Llava-7B model**, make sure it’s downloaded:
 huggingface-cli download unsloth/llava-1.5-7b-hf-bnb-4bit --all
 ```
 
-Then, **select it inside the ComfyUI node settings**.  
+Then, **select it inside the ComfyUI node settings**.
+
+### 🛰️ Running the optional ONNX server
+Use `onnx_vllm_server.py` if you want a lightweight OpenAI compatible endpoint.
+Install the extras and start it like so:
+
+```bash
+pip install .[onnx]
+```
+
+Then run:
+
+```bash
+python onnx_vllm_server.py
+```
+
+The client node accepts any OpenAI compatible endpoint URL, so you can point it
+to this server, Ollama, or the official OpenAI API.
 
 ---
 
@@ -167,4 +184,5 @@ This project is licensed under the **AGPL-3.0 license**. See `LICENSE` for detai
 📣 **Issues, feedback, and contributions are welcome.**  
 
 Happy coding! 🎨🤖  
+
 
