@@ -20,6 +20,7 @@ from .string_utils import fuzzy_match_bool
 from .util.task_data import TaskData
 from .transformer_worker.transformer_worker import list_cached_vision_models
 from .transformer_worker.helpers import has_model_issues, get_model_issues, strip_warning_prefix
+from .openai_client import chat_completion, image_bytes_to_data_url
 
 LOG_FILE = os.path.join(os.path.dirname(__file__), "logs", "inference_results.csv")
 
@@ -266,6 +267,8 @@ class VisionLLMQuery:
             },
             "optional": {
                 "reference_image": ("IMAGE",),  # Optional reference image
+                "api_endpoint": ("STRING", {"default": ""}),
+                "api_key": ("STRING", {"default": ""}),
             }
         }
 
@@ -302,7 +305,22 @@ class VisionLLMQuery:
         text_query = inputs.get("text_query", "Describe the image.")
 
         reference_image = inputs.get("reference_image", None)  # Optional!
+        api_endpoint = inputs.get("api_endpoint", "")
+        api_key = inputs.get("api_key", "")
         max_retries = 3
+
+        if api_endpoint:
+            # Use remote OpenAI-compatible API
+            image_bytes = image_to_bytes(image)
+            content = []
+            if reference_image is not None:
+                content.append({"type": "image_url", "image_url": {"url": image_bytes_to_data_url(image_to_bytes(reference_image))}})
+            content.append({"type": "image_url", "image_url": {"url": image_bytes_to_data_url(image_bytes)}})
+            content.append({"type": "text", "text": text_query})
+            messages = [{"role": "user", "content": content}]
+            response_text = chat_completion(api_endpoint, model_name, messages, api_key if api_key else None)
+            bool_output = fuzzy_match_bool(response_text)
+            return response_text, bool_output, int(bool_output)
 
         if not hasattr(self, "worker"):  # Create worker if not already running
             logging.debug("🚀 Starting persistent inference worker...")

@@ -118,6 +118,17 @@ This setup **first compares two images for similarity**, then **generates a Stab
 - **Recreating an image in a different medium**  
 - **Refining AI-generated art iteratively**  
 
+ 
+### **Optional ONNX OpenAI Server**
+
+An example OpenAI compatible server is located at `extras/onnx_openai_server.py`. It exposes a `/v1/chat/completions` endpoint using a local ONNX model. Run it if you want a self-hosted API:
+
+```bash
+python extras/onnx_openai_server.py
+```
+
+Provide the `api_endpoint` and optional `api_key` inputs to `VisionLLMQuery` to query any OpenAI compatible endpoint (including this server or Ollama).
+
 ---
 
 ## **🛠️ Configuration**  
