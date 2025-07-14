@@ -1,5 +1,8 @@
 import pytest
-from fastapi.testclient import TestClient
+try:
+    from fastapi.testclient import TestClient
+except Exception:  # pragma: no cover - optional
+    pytest.skip("fastapi not installed", allow_module_level=True)
 import onnx_vllm_server
 
 
@@ -9,6 +12,7 @@ def _client(monkeypatch):
     return TestClient(onnx_vllm_server.app)
 
 
+@pytest.mark.onnx
 def test_chat_endpoint_success(monkeypatch):
     client = _client(monkeypatch)
     resp = client.post(
@@ -21,12 +25,14 @@ def test_chat_endpoint_success(monkeypatch):
     assert "id" in data
 
 
+@pytest.mark.onnx
 def test_chat_endpoint_missing_messages(monkeypatch):
     client = _client(monkeypatch)
     resp = client.post("/v1/chat/completions", json={"model": "x"})
     assert resp.status_code == 400
 
 
+@pytest.mark.onnx
 def test_chat_endpoint_invalid_json(monkeypatch):
     client = _client(monkeypatch)
     resp = client.post(
@@ -37,6 +43,7 @@ def test_chat_endpoint_invalid_json(monkeypatch):
     assert resp.status_code == 400
 
 
+@pytest.mark.onnx
 def test_chat_endpoint_with_two_images(monkeypatch):
     client = _client(monkeypatch)
     msg = {
@@ -50,3 +57,4 @@ def test_chat_endpoint_with_two_images(monkeypatch):
     resp = client.post("/v1/chat/completions", json={"model": "test", "messages": [msg]})
     assert resp.status_code == 200
     assert resp.json()["choices"][0]["message"]["content"] == "positive"
+
