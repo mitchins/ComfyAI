@@ -2,7 +2,7 @@
 
 🚀 **ComfyAI** is an advanced **LLM-powered query node** for **ComfyUI**, enabling both **text-based and vision-based inference** using multimodal models like **Qwen-VL** and **Llava**.  
 
-This project exposes a lightweight HTTP API for text or vision models and can use any OpenAI-compatible endpoint, including the optional ONNX server.
+This project exposes a lightweight HTTP API for text or vision models and can use any OpenAI-compatible endpoint, including the optional ONNX server. The ComfyUI node is fully decoupled from the LLM and communicates purely over HTTP.
 
 ---
 
@@ -11,7 +11,8 @@ This project exposes a lightweight HTTP API for text or vision models and can us
 - ✅ **Text & Vision-Based LLM Inference** – Process **both images and text** in ComfyUI.  
 - ✅ **Multimodal Model Support** – Works with **Qwen-VL**, **Llava**, and more.  
 - ✅ **Stable & Resilient** – Offloads heavy inference to an optional external server.
-- ✅ **Optimized Image Handling** – Minimizes memory usage with **controlled tokenization**.  
+- ✅ **Optimized Image Handling** – Minimizes memory usage with **controlled tokenization**.
+- ☁️ **Decoupled Architecture** – The node communicates with any OpenAI-compatible HTTP endpoint so your LLM can run remotely.
 
 ---
 
@@ -64,7 +65,8 @@ pip install -e .[llm]
 
 ### **📌 Use Case 1 - Single Image → Text Output**  
 
-To **describe an image**, pass it as `sample`. The `reference` input is only used for comparisons.  
+To **describe an image**, pass it as `sample`. The `reference` input is only used for comparisons.
+If you provide **both** `sample` and `reference`, the node will send **two images at once** for vision models that support comparisons.
 
 **Example Workflow:**  
 ![Single Image Example](Example01.png)  
