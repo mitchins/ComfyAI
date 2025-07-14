@@ -1,5 +1,6 @@
 import os
-from typing import List, Dict, Any
+import base64
+from typing import List, Dict, Any, Tuple
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -19,6 +20,27 @@ class ChatRequest(BaseModel):
 
 session = None
 MODEL_PATH = os.environ.get("ONNX_MODEL_PATH")
+
+
+def _parse_content(content: Any) -> Tuple[str, list[bytes]]:
+    """Extract text and image bytes from message content."""
+    text = ""
+    images: list[bytes] = []
+    if isinstance(content, list):
+        for part in content:
+            if part.get("type") == "text":
+                text += part.get("text", "")
+            elif part.get("type") == "image_url":
+                url = part.get("image_url", {}).get("url", "")
+                if url.startswith("data:image"):
+                    try:
+                        encoded = url.split(",", 1)[1]
+                        images.append(base64.b64decode(encoded))
+                    except Exception:
+                        pass
+    else:
+        text = str(content or "")
+    return text, images
 
 
 def load_session():
@@ -49,7 +71,9 @@ async def chat(request: Request):
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=e.errors())
 
-    text = req.messages[-1].get("content", "") if req.messages else ""
+    content = req.messages[-1].get("content", "") if req.messages else ""
+    text, images = _parse_content(content)
+    # images are ignored in this simple example but parsing verifies they exist
     result = classify(text)
     return {
         "id": "cmpl-001",

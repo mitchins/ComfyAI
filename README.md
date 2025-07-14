@@ -1,8 +1,8 @@
 # **ComfyAI – LLM-Powered Vision & Text Query Node for ComfyUI**  
 
-🚀 **ComfyAI** is an advanced **LLM-powered query node** for **ComfyUI**, enabling both **text-based and vision-based inference** using multimodal models like **Qwen-VL** and **Llava**.  
+🚀 **ComfyAI** is an advanced **LLM-powered query node** for **ComfyUI**, enabling both **text-based and vision-based inference** using multimodal models like **Qwen-VL** and **Llava**.
 
-This project exposes a lightweight HTTP API for text or vision models and can use any OpenAI-compatible endpoint, including the optional ONNX server.
+The node is completely decoupled from the LLM. Queries are sent over HTTP to **any OpenAI-compatible endpoint**, including the optional ONNX server or the official OpenAI API.
 
 ---
 
@@ -57,8 +57,8 @@ pip install -e .[llm]
 
 1. **Start ComfyUI** (ensure it’s installed and running).  
 2. **Load the custom node from ComfyAI**.  
-3. **Connect image/text inputs** and send queries.  
-4. **Requests are sent to your configured API endpoint**.
+3. **Connect image/text inputs** (optionally **two images** for comparison) and send queries.
+4. **Requests are sent over HTTP to your configured API endpoint**.
 
 ---
 
