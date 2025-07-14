@@ -21,6 +21,19 @@ def test_chat_endpoint_success(monkeypatch):
     assert "id" in data
 
 
+def test_chat_endpoint_with_images(monkeypatch):
+    client = _client(monkeypatch)
+    resp = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test",
+            "messages": [{"role": "user", "content": "hi"}],
+            "images": ["img1", "img2"],
+        },
+    )
+    assert resp.status_code == 200
+
+
 def test_chat_endpoint_missing_messages(monkeypatch):
     client = _client(monkeypatch)
     resp = client.post("/v1/chat/completions", json={"model": "x"})

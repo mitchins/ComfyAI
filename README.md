@@ -2,7 +2,9 @@
 
 🚀 **ComfyAI** is an advanced **LLM-powered query node** for **ComfyUI**, enabling both **text-based and vision-based inference** using multimodal models like **Qwen-VL** and **Llava**.  
 
-This project exposes a lightweight HTTP API for text or vision models and can use any OpenAI-compatible endpoint, including the optional ONNX server.
+This project exposes a lightweight HTTP API. The ComfyUI node simply calls
+an **OpenAI-compatible endpoint** so the actual LLM can run on a remote
+server (for example the included ONNX server or any OpenAI-like service).
 
 ---
 
@@ -57,14 +59,17 @@ pip install -e .[llm]
 
 1. **Start ComfyUI** (ensure it’s installed and running).  
 2. **Load the custom node from ComfyAI**.  
-3. **Connect image/text inputs** and send queries.  
+3. **Connect image/text inputs** and send queries.
 4. **Requests are sent to your configured API endpoint**.
+   The node itself simply performs an HTTP request to an
+   **OpenAI-compatible endpoint** so the heavy LLM can run anywhere.
 
 ---
 
-### **📌 Use Case 1 - Single Image → Text Output**  
+### **📌 Use Case 1 - Single Image → Text Output**
 
-To **describe an image**, pass it as `sample`. The `reference` input is only used for comparisons.  
+To **describe an image**, pass it to the `image` input. The optional
+`reference_image` input is only used when doing comparisons.
 
 **Example Workflow:**  
 ![Single Image Example](Example01.png)  
@@ -74,9 +79,10 @@ To **describe an image**, pass it as `sample`. The `reference` input is only use
 
 ---
 
-### **📌 Use Case 2 - Comparing Two Images (Boolean Output)**  
+### **📌 Use Case 2 - Comparing Two Images (Boolean Output)**
 
-The **Vision LLM** can compare **two images** and **output a True/False result**.  
+Provide both `image` and `reference_image` to compare them. The
+**Vision LLM** can compare **two images** and **output a True/False result**.
 
 **Example Workflow:**  
 ![Image Comparison Example](Example02.png)  

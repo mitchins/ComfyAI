@@ -15,6 +15,7 @@ app = FastAPI()
 class ChatRequest(BaseModel):
     model: str
     messages: List[Dict[str, Any]]
+    images: List[str] | None = None
     max_tokens: int | None = None
 
 session = None
@@ -50,6 +51,9 @@ async def chat(request: Request):
         raise HTTPException(status_code=400, detail=e.errors())
 
     text = req.messages[-1].get("content", "") if req.messages else ""
+    # Currently we simply ignore the images but validate the input
+    if req.images:
+        _ = len(req.images)
     result = classify(text)
     return {
         "id": "cmpl-001",

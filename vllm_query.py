@@ -1,6 +1,8 @@
 import logging
+import base64
 from string_utils import fuzzy_match_bool
 from openai_client import chat_completion
+from image_utils import image_to_bytes
 
 class VisionLLMQuery:
     @classmethod
@@ -31,6 +33,20 @@ class VisionLLMQuery:
         api_key = inputs.get("api_key", "") or None
         text_query = inputs.get("text_query", "")
         messages = [{"role": "user", "content": text_query}]
-        result = chat_completion(api_endpoint, api_model, messages, api_key=api_key)
+
+        images = []
+        for key in ("image", "reference_image"):
+            img_tensor = inputs.get(key)
+            if img_tensor is not None:
+                byte_data = image_to_bytes(img_tensor)
+                images.append(base64.b64encode(byte_data).decode("utf-8"))
+
+        result = chat_completion(
+            api_endpoint,
+            api_model,
+            messages,
+            api_key=api_key,
+            images=images or None,
+        )
         bool_output = fuzzy_match_bool(result)
         return result, bool_output, int(bool_output)
