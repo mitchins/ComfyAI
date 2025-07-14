@@ -2,7 +2,7 @@
 
 🚀 **ComfyAI** is an advanced **LLM-powered query node** for **ComfyUI**, enabling both **text-based and vision-based inference** using multimodal models like **Qwen-VL** and **Llava**.  
 
-This project **isolates CUDA inference in a separate worker process**, ensuring that **ComfyUI remains stable even if CUDA crashes**.  
+This project exposes a lightweight HTTP API for text or vision models and can use any OpenAI-compatible endpoint, including the optional ONNX server.
 
 ---
 
@@ -10,8 +10,7 @@ This project **isolates CUDA inference in a separate worker process**, ensuring 
 
 - ✅ **Text & Vision-Based LLM Inference** – Process **both images and text** in ComfyUI.  
 - ✅ **Multimodal Model Support** – Works with **Qwen-VL**, **Llava**, and more.  
-- ✅ **Stable & Resilient** – Runs inference in an **isolated worker process** to prevent UI crashes.  
-- ✅ **Parallelized Processing** – Uses **multiprocessing** for fast, efficient LLM queries.  
+- ✅ **Stable & Resilient** – Offloads heavy inference to an optional external server.
 - ✅ **Optimized Image Handling** – Minimizes memory usage with **controlled tokenization**.  
 
 ---
@@ -47,7 +46,7 @@ Ensure you have the following installed:
 cd custom_nodes
 git clone https://github.com/mitchins/ComfyAI.git
 cd ComfyAI
-pip install -r requirements.txt
+pip install -e .[llm]
 ```
 
 ---
@@ -59,7 +58,7 @@ pip install -r requirements.txt
 1. **Start ComfyUI** (ensure it’s installed and running).  
 2. **Load the custom node from ComfyAI**.  
 3. **Connect image/text inputs** and send queries.  
-4. **The worker process handles inference asynchronously**.  
+4. **Requests are sent to your configured API endpoint**.
 
 ---
 
@@ -132,19 +131,27 @@ If you want to use a **Llava-7B model**, make sure it’s downloaded:
 huggingface-cli download unsloth/llava-1.5-7b-hf-bnb-4bit --all
 ```
 
-Then, **select it inside the ComfyUI node settings**.  
+Then, **select it inside the ComfyUI node settings**.
 
----
+### 🛰️ Running the optional ONNX server
+Use `onnx_vllm_server.py` if you want a lightweight OpenAI compatible endpoint.
+Install the optional dependencies first:
 
-### **📜 Logging**  
-Logs are saved to `worker.log` in the package directory.  
-
-📌 **Monitor logs in real-time:**  
 ```bash
-tail -f custom_nodes/ComfyNodes/transformer_worker/worker.log
+pip install -e .[onnx]
 ```
 
+Then start the server:
+
+```bash
+python onnx_vllm_server.py
+```
+
+The client node accepts any OpenAI compatible endpoint URL, so you can point it
+to this server, Ollama, or the official OpenAI API.
+
 ---
+
 
 ## **📅 Roadmap**  
 
