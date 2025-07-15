@@ -196,10 +196,14 @@ print(response)
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+pytest tests -q
+pytest integration_tests -q
 ```
 
-ONNX/Server tests are auto-skipped unless you've installed the `onnx` extra.
+Integration tests expect a clone of the ComfyUI project under
+`ComfyUI_repo/` (or otherwise available on `PYTHONPATH`). The CI workflow
+runs both test suites sequentially. ONNX/Server tests are auto-skipped
+unless you've installed the `onnx` extra.
 
 ---
 
