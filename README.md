@@ -136,7 +136,7 @@ huggingface-cli download unsloth/llava-1.5-7b-hf-bnb-4bit --all
 Then, **select it inside the ComfyUI node settings**.
 
 ### 🛰️ Running the optional ONNX server
-Use `onnx_vllm_server.py` if you want a lightweight OpenAI compatible endpoint.
+Use `apps/onnx_server.py` if you want a lightweight OpenAI compatible endpoint.
 Install the optional dependencies first:
 
 ```bash
@@ -146,11 +146,59 @@ pip install -e .[onnx]
 Then start the server:
 
 ```bash
-python onnx_vllm_server.py
+python apps/onnx_server.py
 ```
 
 The client node accepts any OpenAI compatible endpoint URL, so you can point it
 to this server, Ollama, or the official OpenAI API.
+
+---
+
+## Installation & Runners
+
+**Default** (remote OpenAI):
+
+```bash
+pip install comfyai
+```
+
+**Optional ONNX VLLM server**:
+
+```bash
+pip install comfyai[onnx]
+```
+
+### Environment Variables
+
+- `COMFYAI_ENDPOINT` – base URL for API calls (default: `https://api.openai.com/v1`)
+- `COMFYAI_ONNX_PORT` – local ONNX server port (default: `8000`)
+
+### Example Usage
+
+```python
+from comfyai import openai_client
+
+# Remote:
+client = openai_client(api_key="…")
+
+# Local ONNX:
+client = openai_client(endpoint="http://localhost:8000/v1/chat/completions")
+
+response = client.create(
+model="qwen2.5",
+messages=[{"role":"user","content":"Hello"}]
+)
+print(response)
+```
+
+### Testing
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+ONNX/Server tests are auto-skipped unless you've installed the `onnx` extra.
 
 ---
 

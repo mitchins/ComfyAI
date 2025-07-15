@@ -1,4 +1,4 @@
-import vllm_query
+from custom_nodes import vllm_query
 
 
 def test_run_with_two_images(monkeypatch):
