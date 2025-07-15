@@ -196,8 +196,13 @@ print(response)
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+pytest tests -q
+pytest integration_tests -q
 ```
+
+For the integration tests to run, clone the upstream **ComfyUI** repository into
+`third_party/ComfyUI` so that built-in nodes can be imported. CI runs both test
+suites separately with `pytest tests` and `pytest integration_tests`.
 
 ONNX/Server tests are auto-skipped unless you've installed the `onnx` extra.
 
