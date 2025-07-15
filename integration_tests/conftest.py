@@ -1,24 +1,23 @@
 import pytest
 from PIL import Image
 import numpy as np
-import sys, types
-import os
+import sys, types, os, pathlib
 
-# Ensure unit test mode for modules that check this env var
+# Path tweaks so the workflow runner can resolve nodes
+ROOT = pathlib.Path(__file__).parent.parent.resolve()
+comfy_src = ROOT / "third_party" / "ComfyUI"
+sys.path.insert(0, str(comfy_src))
+sys.path.insert(0, str(ROOT / "custom_nodes"))
+
 os.environ.setdefault("UNIT_TEST_MODE", "1")
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-# Add repository root to sys.path so local modules resolve
-repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if repo_root not in sys.path:
-    sys.path.insert(0, repo_root)
-
-# Stub heavy modules so imports never fail
 for mod in ("torch", "onnxruntime", "fastapi", "uvicorn"):
     sys.modules.setdefault(mod, types.ModuleType(mod))
 
 @pytest.fixture
 def dummy_image():
-    """16×16 black RGB image"""
     return Image.fromarray(np.zeros((16,16,3), dtype=np.uint8))
 
 @pytest.fixture
@@ -29,17 +28,13 @@ def dummy_string():
 def dummy_int():
     return 0
 
-
 @pytest.fixture
 def run_graph():
-    """Execute a mini-graph via the workflow runner."""
     from comfyai.testing.workflow_runner import run_workflow_from_json
     return run_workflow_from_json
 
 
-# Pytest hook: skip ONNX tests without optional packages
 def pytest_runtest_setup(item):
-    """Skip tests marked with 'onnx' if optional deps aren't installed."""
     if "onnx" in item.keywords:
         import importlib.util
         if (
@@ -47,4 +42,3 @@ def pytest_runtest_setup(item):
             or importlib.util.find_spec("fastapi") is None
         ):
             pytest.skip("Skipping ONNX tests; optional extra not installed")
-
