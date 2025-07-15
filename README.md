@@ -196,8 +196,12 @@ print(response)
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+pytest tests -q
+pytest integration_tests -q
 ```
+
+Integration tests need a clone of the ComfyUI repository available next to this
+project (`ComfyUI_repo`) or otherwise on `PYTHONPATH`.
 
 ONNX/Server tests are auto-skipped unless you've installed the `onnx` extra.
 
