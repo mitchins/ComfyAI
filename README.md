@@ -196,8 +196,12 @@ print(response)
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+pytest tests -q
+pytest integration_tests -q
 ```
+
+The integration suite expects a clone of **ComfyUI** in `ComfyUI_repo/` so that
+built-in nodes can be imported.
 
 ONNX/Server tests are auto-skipped unless you've installed the `onnx` extra.
 
