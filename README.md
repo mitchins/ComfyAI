@@ -196,9 +196,11 @@ print(response)
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+pytest tests
+pytest integration_tests
 ```
 
+Unit tests live in `tests/` while integration tests live in `integration_tests/`.
 ONNX/Server tests are auto-skipped unless you've installed the `onnx` extra.
 
 ---
