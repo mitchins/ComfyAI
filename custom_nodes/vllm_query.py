@@ -1,8 +1,8 @@
 import logging
 import base64
-from string_utils import fuzzy_match_bool
-from openai_client import chat_completion
-from image_utils import image_to_bytes
+from .string_utils import fuzzy_match_bool
+from .openai_client import chat_completion
+from .image_utils import image_to_bytes
 
 class VisionLLMQuery:
     @classmethod
@@ -53,4 +53,7 @@ class VisionLLMQuery:
 
         result = chat_completion(api_endpoint, api_model, messages, api_key=api_key)
         bool_output = fuzzy_match_bool(result)
+        # Ensure bool_output is a boolean, default to False if None
+        if bool_output is None:
+            bool_output = False
         return result, bool_output, int(bool_output)

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 import os
 
 os.environ["UNIT_TEST_MODE"] = "1"
-import openai_client
+from custom_nodes import openai_client
 import requests
 
 
