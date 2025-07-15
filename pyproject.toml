@@ -8,19 +8,28 @@ version = "0.1.0"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ComfyNodes*"]
+include = ["custom_nodes*", "apps*"]
 
 [tool.setuptools]
 py-modules = [
-    "openai_client",
-    "onnx_vllm_server",
-    "vllm_query",
-    "string_utils",
-    "image_utils",
-    "conditional_save_image",
+    "apps.onnx_server",
+    "custom_nodes.openai_client",
+    "custom_nodes.vllm_query",
+    "custom_nodes.string_utils",
+    "custom_nodes.image_utils",
+    "custom_nodes.conditional_save_image",
 ]
 
 [project.optional-dependencies]
-onnx = ["fastapi", "uvicorn", "onnxruntime"]
-llm = ["torch", "torchvision"]
-dev = ["pytest", "requests", "fastapi", "httpx", "pillow", "rapidfuzz"]
+onnx = [
+    "onnxruntime>=1.15",
+    "fastapi>=0.95",
+    "uvicorn>=0.22",
+]
+# torch = ["torch>=2.0"]
+
+[project.dev-dependencies]
+pytest = "^7.0"
+pillow = "^9.0"
+numpy = "^1.23"
+requests = "^2.28"
