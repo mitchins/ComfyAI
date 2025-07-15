@@ -30,6 +30,13 @@ def dummy_int():
     return 0
 
 
+@pytest.fixture
+def run_graph():
+    """Execute a mini workflow graph JSON headlessly."""
+    from comfyai.testing.workflow_runner import run_workflow_from_json
+    return run_workflow_from_json
+
+
 # Pytest hook: skip ONNX tests without optional packages
 def pytest_runtest_setup(item):
     """Skip tests marked with 'onnx' if optional deps aren't installed."""
