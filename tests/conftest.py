@@ -41,3 +41,9 @@ def pytest_runtest_setup(item):
         ):
             pytest.skip("Skipping ONNX tests; optional extra not installed")
 
+
+@pytest.fixture
+def run_graph():
+    """Execute a mini workflow graph using the headless runner."""
+    from comfyai.testing.workflow_runner import run_workflow_from_json
+    return run_workflow_from_json
