@@ -196,7 +196,8 @@ print(response)
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+pytest tests -q
+pytest integration_tests -q
 ```
 
 ONNX/Server tests are auto-skipped unless you've installed the `onnx` extra.
