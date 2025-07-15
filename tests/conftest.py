@@ -41,3 +41,10 @@ def pytest_runtest_setup(item):
         ):
             pytest.skip("Skipping ONNX tests; optional extra not installed")
 
+
+@pytest.fixture
+def run_graph():
+    """Helper to execute a mini workflow graph."""
+    from comfyai.testing.workflow_runner import run_workflow_from_json
+    return run_workflow_from_json
+
