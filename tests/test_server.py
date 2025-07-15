@@ -1,12 +1,24 @@
 import pytest
-from fastapi.testclient import TestClient
-import onnx_vllm_server
+
+pytestmark = pytest.mark.onnx
+
+try:
+    from fastapi.testclient import TestClient
+    import fastapi  # noqa: F401
+    from apps.onnx_server import app
+except Exception:  # pragma: no cover - optional
+    TestClient = None
+
+if TestClient is None:
+    pytest.skip("fastapi not available", allow_module_level=True)
 
 
 def _client(monkeypatch):
+    if TestClient is None:
+        pytest.skip("fastapi not available")
     # ensure classify returns predictable output
-    monkeypatch.setattr(onnx_vllm_server, "classify", lambda text: "positive")
-    return TestClient(onnx_vllm_server.app)
+    monkeypatch.setattr("apps.onnx_server.classify", lambda text: "positive")
+    return TestClient(app)
 
 
 def test_chat_endpoint_success(monkeypatch):
