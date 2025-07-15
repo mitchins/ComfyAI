@@ -1,8 +1,8 @@
 import logging
 import base64
-from string_utils import fuzzy_match_bool
-from openai_client import chat_completion
-from image_utils import image_to_bytes
+from .string_utils import fuzzy_match_bool
+from .openai_client import chat_completion
+from .image_utils import image_to_bytes
 
 class VisionLLMQuery:
     @classmethod
