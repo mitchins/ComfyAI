@@ -3,7 +3,7 @@
 These tests run small ComfyUI workflows without launching the UI. They require a
 clone of the ComfyUI repository placed at ``ComfyUI_repo/`` in the project root
 (or otherwise available on ``PYTHONPATH``). ``integration_tests/conftest.py``
-prepends that directory and ``custom_nodes`` to ``sys.path`` during test
+prepends that directory and ``nodes`` to ``sys.path`` during test
 initialisation.
 
 Run these tests with::

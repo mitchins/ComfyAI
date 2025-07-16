@@ -8,7 +8,7 @@ try:
 except Exception:  # pragma: no cover - optional
     torch = None  # type: ignore
 
-from custom_nodes.image_utils import tensor_to_pil
+from nodes.image_utils import tensor_to_pil
 
 
 def fetch_face_api_response(

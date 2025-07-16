@@ -1,10 +1,10 @@
 import pytest
-from custom_nodes.vllm_query import (
+from nodes.vllm_query import (
     VLLMTextQuery,
     VLLMImageQuery,
     VLLMDualImageQuery,
 )
-import custom_nodes.vllm_query as vllm_query
+import nodes.vllm_query as vllm_query
 
 
 @pytest.mark.parametrize(
@@ -30,9 +30,9 @@ def test_contract(cls, needs_image):
 
 def test_run_minimal(dummy_image, monkeypatch):
     node = VLLMImageQuery()
-    monkeypatch.setattr("custom_nodes.vllm_query.chat_completion", lambda *a, **k: "yes")
-    monkeypatch.setattr("custom_nodes.vllm_query.fuzzy_match_bool", lambda x: True)
-    monkeypatch.setattr("custom_nodes.vllm_query.image_to_bytes", lambda img: b"img")
+    monkeypatch.setattr("nodes.vllm_query.chat_completion", lambda *a, **k: "yes")
+    monkeypatch.setattr("nodes.vllm_query.fuzzy_match_bool", lambda x: True)
+    monkeypatch.setattr("nodes.vllm_query.image_to_bytes", lambda img: b"img")
     result = node.run(
         api_endpoint="http://x",
         api_model="gpt",

@@ -43,7 +43,8 @@ Ensure you have the following installed:
 
 ### **📌 Install ComfyAI (from your ComfyUI installation folder)**
 
-Clone this repo inside ComfyUI's `custom_nodes/` folder and install the package:
+Clone this repo inside ComfyUI's `custom_nodes/` folder (or copy just the
+`nodes/` subfolder) and install the package:
 
 ```bash
 cd custom_nodes
@@ -52,7 +53,7 @@ git clone https://github.com/mitchins/ComfyAI.git
 # The plugin nodes live in the `nodes/` directory. You can clone the
 # whole repository (as above) or simply copy that folder into a
 # subdirectory, e.g. `custom_nodes/ComfyAI/`.
-# Only the contents of `nodes` are required for ComfyUI plugins.
+# Only the contents of `nodes/` are required for the ComfyUI plugin.
 
 # Nodes only
 pip install comfyai
