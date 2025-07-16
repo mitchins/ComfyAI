@@ -1,32 +1,33 @@
-import torch
-from torchvision import transforms  # If needed, add specific modules from torchvision here
-import time
+import csv
 import logging
 import multiprocessing as mp
-import subprocess
 import os
 import subprocess
-import os
-import time
-import logging
+import sys
 import threading
 import time
-import sys
-import csv
 from datetime import datetime
+from typing import Optional
+
+import torch
+from torchvision import \
+    transforms  # If needed, add specific modules from torchvision here
+
 from .image_utils import image_to_bytes
 from .string_utils import fuzzy_match_bool
-
-from .util.task_data import TaskData
+from .transformer_worker.helpers import (get_model_issues, has_model_issues,
+                                         strip_warning_prefix)
 from .transformer_worker.transformer_worker import list_cached_vision_models
-from .transformer_worker.helpers import has_model_issues, get_model_issues, strip_warning_prefix
+from .util.task_data import TaskData
 
 LOG_FILE = os.path.join(os.path.dirname(__file__), "logs", "inference_results.csv")
 
 
-def log_attempt(model_name, gpu_device, attempt, outcome, error_message=None, final=False):
+def log_attempt(
+    model_name, gpu_device, attempt, outcome, error_message=None, final=False
+):
     """Logs inference attempts with an easy way to filter final results."""
-    
+
     log_entry = [
         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         model_name,
@@ -34,18 +35,28 @@ def log_attempt(model_name, gpu_device, attempt, outcome, error_message=None, fi
         attempt,
         outcome,
         error_message if error_message else "None",
-        "Yes" if final else "No"
+        "Yes" if final else "No",
     ]
-    
+
     # Check if logs folder exists, or create one
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-    
+
     # Ensure header exists
     file_exists = os.path.isfile(LOG_FILE)
     with open(LOG_FILE, mode="a", newline="") as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(["Timestamp", "Model Name", "GPU Device", "Attempt", "Outcome", "Error Message", "Final"])
+            writer.writerow(
+                [
+                    "Timestamp",
+                    "Model Name",
+                    "GPU Device",
+                    "Attempt",
+                    "Outcome",
+                    "Error Message",
+                    "Final",
+                ]
+            )
         writer.writerow(log_entry)
 
 
@@ -53,6 +64,7 @@ def get_node_package_path():
     """Determine the package path for executing the worker as a module."""
     current_module = __name__.split(".")[0]  # Extract the root package (ComfyNodes)
     return current_module  # Return only the base package name
+
 
 class PersistentInferenceWorker:
     def __init__(self, gpu_device, model_name, worker_module="transformer_worker"):
@@ -86,7 +98,7 @@ class PersistentInferenceWorker:
                 while True:
                     if self.worker is None or self.worker.poll() is not None:
                         break  # Exit if the worker is no longer running
-                    
+
                     line = self.worker.stderr.readline()
                     if not line:
                         break  # Stop if `stderr` is empty (EOF)
@@ -115,12 +127,16 @@ class PersistentInferenceWorker:
             worker_module = f"{package_base}.{self.worker_module}"  # Ensures it matches the Comfy Node package path
 
             # Modify PYTHONPATH to ensure the worker sees ComfyNodes as the root, not custom_nodes.ComfyNodes
-            comfy_root = os.path.abspath(os.getcwd())  # ComfyUI root (assumed to be CWD)
+            comfy_root = os.path.abspath(
+                os.getcwd()
+            )  # ComfyUI root (assumed to be CWD)
             custom_nodes_path = os.path.join(comfy_root, "custom_nodes")
 
             env = os.environ.copy()
             logging.debug(f"🔧 Original PYTHONPATH: {env.get('PYTHONPATH', '')}")
-            env["PYTHONPATH"] = f"{custom_nodes_path}:{env.get('PYTHONPATH', '')}"  # Override PYTHONPATH
+            env["PYTHONPATH"] = (
+                f"{custom_nodes_path}:{env.get('PYTHONPATH', '')}"  # Override PYTHONPATH
+            )
 
             self.worker = subprocess.Popen(
                 [sys.executable, "-m", worker_module, self.gpu_device, self.model_name],
@@ -129,7 +145,7 @@ class PersistentInferenceWorker:
                 stderr=subprocess.PIPE,
                 bufsize=1,
                 text=True,
-                env=env
+                env=env,
             )
 
             logging.debug("✅ Worker started, waiting for READY signal...")
@@ -174,7 +190,9 @@ class PersistentInferenceWorker:
 
         # Ensure worker is running
         if self.worker is None or self.worker.poll() is not None:
-            logging.error("🚨 Worker is dead or missing! Restarting before submitting task.")
+            logging.error(
+                "🚨 Worker is dead or missing! Restarting before submitting task."
+            )
             self.start_worker()  # Restart worker before continuing
 
         # Determine the correct task to send
@@ -195,7 +213,7 @@ class PersistentInferenceWorker:
             # Save task before sending
             with self.lock:
                 self.last_task = task_data
-        
+
         try:
             logging.info("📩 Sending task to worker...")
             self.parent_conn.send(task_data)  # Send task via pipe
@@ -203,7 +221,6 @@ class PersistentInferenceWorker:
 
         except BrokenPipeError:
             logging.warning("🚨 Worker pipe broken! Terminating.")
-                
 
     def get_result(self):
         """Receive results from the worker process, handling potential EOFErrors."""
@@ -216,24 +233,27 @@ class PersistentInferenceWorker:
 
         except EOFError:
             logging.error("❌ Worker connection lost (EOFError). Restarting worker...")
-            
+
             if self.worker:
                 logging.warning("🛑 Force-killing unresponsive worker...")
                 self.worker.terminate()
                 self.worker.wait()  # Ensure cleanup
-            
+
             self.worker = None  # 🔥 Unset reference
             return None
-
 
     def shutdown(self):
         """Gracefully terminate the worker process."""
         self.worker.terminate()
         logging.info("🛑 Worker process terminated.")
-        
+
+
 logging.basicConfig(level=logging.DEBUG)
 
-class VisionLLMQuery:    
+
+class BaseLLMQuery:
+    """Common logic shared across different query node types."""
+
     _AVAILABLE_GPUS = None  # Cache for available GPUs
     _AVAILABLE_MODELS = None  # Cache for available models
 
@@ -241,7 +261,9 @@ class VisionLLMQuery:
     def get_available_gpus(cls):
         """Lazily fetch the available CUDA devices (only once)."""
         if cls._AVAILABLE_GPUS is None:
-            cls._AVAILABLE_GPUS = [f"cuda:{i}" for i in range(torch.cuda.device_count())] or ["cpu"]
+            cls._AVAILABLE_GPUS = [
+                f"cuda:{i}" for i in range(torch.cuda.device_count())
+            ] or ["cpu"]
         return cls._AVAILABLE_GPUS
 
     @classmethod
@@ -250,23 +272,26 @@ class VisionLLMQuery:
         if cls._AVAILABLE_MODELS is None:
             cls._AVAILABLE_MODELS = list_cached_vision_models()
         return cls._AVAILABLE_MODELS
-    
+
     @classmethod
     def INPUT_TYPES(cls):
         """Dynamically defines input types, ensuring models & GPUs are listed only when needed."""
         available_gpus = cls.get_available_gpus()
         available_models = cls.get_available_models()
-    
+
         return {
             "required": {
                 "image": ("IMAGE",),  # Main image input
-                "text_query": ("STRING", {"default": "Describe the image.", "multiline": True}),
+                "text_query": (
+                    "STRING",
+                    {"default": "Describe the image.", "multiline": True},
+                ),
                 "gpu_device": (available_gpus, {"default": available_gpus[0]}),
                 "model_name": (available_models, {"default": available_models[0]}),
             },
             "optional": {
                 "reference_image": ("IMAGE",),  # Optional reference image
-            }
+            },
         }
 
     RETURN_TYPES = ("STRING", "BOOLEAN", "INT")
@@ -277,31 +302,26 @@ class VisionLLMQuery:
     def __init__(self):
         self.device = None
 
-    def run(self, **inputs):
-        """Uses a persistent worker process to run inference without crashing the parent process."""
-        
-        if "gpu_device" in inputs:
-            gpu_device = inputs["gpu_device"]
-        else:
-            gpu_device = VisionLLMQuery.get_available_gpus()[0]
-            logging.warning(f"Did not receive gpu_device, defaulting to {gpu_device}")
-        
-        if "model_name" in inputs:
-            model_name = inputs["model_name"]
-        else:
-            model_name = VisionLLMQuery.get_available_models()[0]
-            logging.warning(f"Did not receive model, defaulting to {model_name}")
+    def run_llm(
+        self,
+        *,
+        text_query: str,
+        gpu_device: Optional[str] = None,
+        model_name: Optional[str] = None,
+        image=None,
+        reference_image=None,
+    ):
+        """Run inference using a persistent worker."""
+
+        gpu_device = gpu_device or self.__class__.get_available_gpus()[0]
+        model_name = model_name or self.__class__.get_available_models()[0]
         if has_model_issues(model_name):
             message = f"Model '{strip_warning_prefix(model_name)}' has known issues:"
-            message += "\n" + '\n '.join(get_model_issues(model_name))
+            message += "\n" + "\n ".join(get_model_issues(model_name))
             logging.error(message)
             # Raise an error for unsupported model
             raise Exception(message)
-        
-        image = inputs["image"]
-        text_query = inputs.get("text_query", "Describe the image.")
 
-        reference_image = inputs.get("reference_image", None)  # Optional!
         max_retries = 3
 
         if not hasattr(self, "worker"):  # Create worker if not already running
@@ -310,21 +330,45 @@ class VisionLLMQuery:
 
         attempt = 1
         while attempt <= max_retries:
-            image_bytes = image_to_bytes(image)
-            reference_bytes = image_to_bytes(reference_image) if reference_image is not None else None
-            task = TaskData(image_bytes=image_bytes, reference_bytes=reference_bytes, text_query=text_query)
+            image_bytes = image_to_bytes(image) if image is not None else None
+            reference_bytes = (
+                image_to_bytes(reference_image) if reference_image is not None else None
+            )
+            task = TaskData(
+                image_bytes=image_bytes,
+                reference_bytes=reference_bytes,
+                text_query=text_query,
+            )
 
-            self.worker.submit_task(task)  # Send task
-            llm_response = self.worker.get_result()  # Wait for response
+            self.worker.submit_task(task)
+            llm_response = self.worker.get_result()
 
-            is_final_attempt = (attempt == max_retries)  # Cleaner readability
+            is_final_attempt = attempt == max_retries  # Cleaner readability
 
             if llm_response is None:
-                logging.error(f"🔥 Worker failed on attempt {attempt}/{max_retries}. Retrying...")
-                log_attempt(model_name, gpu_device, attempt, "Failure", "Empty Response", final=is_final_attempt)
+                logging.error(
+                    f"🔥 Worker failed on attempt {attempt}/{max_retries}. Retrying..."
+                )
+                log_attempt(
+                    model_name,
+                    gpu_device,
+                    attempt,
+                    "Failure",
+                    "Empty Response",
+                    final=is_final_attempt,
+                )
             elif isinstance(llm_response, Exception):  # Just retry, no worker restart
-                logging.error(f"🚨 Worker threw an exception: {llm_response}. Retrying task...")
-                log_attempt(model_name, gpu_device, attempt, "Failure", str(llm_response), final=is_final_attempt)
+                logging.error(
+                    f"🚨 Worker threw an exception: {llm_response}. Retrying task..."
+                )
+                log_attempt(
+                    model_name,
+                    gpu_device,
+                    attempt,
+                    "Failure",
+                    str(llm_response),
+                    final=is_final_attempt,
+                )
             else:
                 logging.info(f"✅ Inference attempt {attempt}/{max_retries} succeeded.")
                 logging.debug(f"🔤 Raw text: {llm_response}")
@@ -333,11 +377,88 @@ class VisionLLMQuery:
                 results = llm_response, bool_output, int(bool_output)
                 logging.debug(f"Results: {results}")
 
-                log_attempt(model_name, gpu_device, attempt, "Success", None, final=True)
-                return results  # Success!
+                log_attempt(
+                    model_name, gpu_device, attempt, "Success", None, final=True
+                )
+                return results
 
             attempt += 1
             torch.cuda.empty_cache()  # Clear VRAM between retries
 
         logging.error(f"❌ All {max_retries} inference attempts failed. Skipping.")
-        return None  # Returns None instead of crashing
+        return None
+
+
+class TextLLMQuery(BaseLLMQuery):
+    @classmethod
+    def INPUT_TYPES(cls):
+        available_gpus = cls.get_available_gpus()
+        available_models = cls.get_available_models()
+        return {
+            "required": {
+                "text_query": ("STRING", {"default": "Enter text.", "multiline": True}),
+                "gpu_device": (available_gpus, {"default": available_gpus[0]}),
+                "model_name": (available_models, {"default": available_models[0]}),
+            }
+        }
+
+    def run(self, text_query, gpu_device, model_name):
+        return self.run_llm(
+            text_query=text_query, gpu_device=gpu_device, model_name=model_name
+        )
+
+
+class ImageLLMQuery(BaseLLMQuery):
+    @classmethod
+    def INPUT_TYPES(cls):
+        available_gpus = cls.get_available_gpus()
+        available_models = cls.get_available_models()
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "text_query": (
+                    "STRING",
+                    {"default": "Describe the image.", "multiline": True},
+                ),
+                "gpu_device": (available_gpus, {"default": available_gpus[0]}),
+                "model_name": (available_models, {"default": available_models[0]}),
+            }
+        }
+
+    def run(self, image, text_query, gpu_device, model_name):
+        return self.run_llm(
+            text_query=text_query,
+            gpu_device=gpu_device,
+            model_name=model_name,
+            image=image,
+        )
+
+
+class VisionLLMQuery(BaseLLMQuery):
+    @classmethod
+    def INPUT_TYPES(cls):
+        available_gpus = cls.get_available_gpus()
+        available_models = cls.get_available_models()
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "text_query": (
+                    "STRING",
+                    {"default": "Describe the image.", "multiline": True},
+                ),
+                "gpu_device": (available_gpus, {"default": available_gpus[0]}),
+                "model_name": (available_models, {"default": available_models[0]}),
+            },
+            "optional": {
+                "reference_image": ("IMAGE",),
+            },
+        }
+
+    def run(self, image, text_query, gpu_device, model_name, reference_image=None):
+        return self.run_llm(
+            text_query=text_query,
+            gpu_device=gpu_device,
+            model_name=model_name,
+            image=image,
+            reference_image=reference_image,
+        )
