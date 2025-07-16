@@ -4,15 +4,15 @@ The `apps/` directory contains optional HTTP services that expose lightweight AP
 
 ## ONNX Chat Completion Server
 
-`onnx_server.py` starts a minimal OpenAI compatible endpoint. It can run a toy ONNX model or fall back to very simple rules if no model is provided. Use it when you need a local endpoint for the query nodes.
+`onnx_chat/` contains a simple FastAPI service providing an OpenAI style `/v1/chat/completions` endpoint.
 
 Run it with:
 
 ```bash
-python -m apps.onnx_server
+uvicorn apps.onnx_chat.main:app --host 0.0.0.0 --port 8000
 ```
 
-Set `ONNX_MODEL_PATH` to point at an ONNX model file if you have one. The server listens on port `8000` by default.
+Set `ONNX_MODEL_PATH` to point at an ONNX model file if you have one. A `Dockerfile` is available for container builds.
 
 ## Face Comparison API
 
@@ -30,6 +30,13 @@ Launch it using:
 
 ```bash
 uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
+```
+
+A `Dockerfile` in the directory can be used for containerization:
+
+```bash
+docker build -t comfyai-face-api ./face_api
+docker run -p 7860:7860 comfyai-face-api
 ```
 
 Several environment variables let you tune which provider or model is used:

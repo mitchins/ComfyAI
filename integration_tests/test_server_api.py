@@ -11,8 +11,8 @@ except Exception:  # pragma: no cover - optional
 if TestClient is None:
     pytest.skip("fastapi not available", allow_module_level=True)
 else:
-    from apps.onnx_server import app
-    import apps.onnx_server as onnx_server
+    from apps.onnx_chat.main import app
+    import apps.onnx_chat.main as onnx_server
 
 
 def _client(monkeypatch):

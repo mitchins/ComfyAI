@@ -156,7 +156,7 @@ Install the optional extra and run the server:
 
 ```bash
 pip install comfyai[onnx]
-comfyai-onnx-server  # or: python -m apps.onnx_server
+comfyai-onnx-server  # or: uvicorn apps.onnx_chat.main:app --host 0.0.0.0 --port 8000
 ```
 
 The client node accepts any OpenAI compatible endpoint URL, so you can point it
