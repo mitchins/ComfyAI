@@ -12,9 +12,16 @@ repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
-# Stub heavy modules so imports never fail
+# Stub heavy modules so imports never fail. Only create stubs if the
+# real package is missing to allow optional deps when installed.
+import importlib.util
 for mod in ("torch", "onnxruntime", "fastapi", "uvicorn"):
-    sys.modules.setdefault(mod, types.ModuleType(mod))
+    try:
+        spec = importlib.util.find_spec(mod)
+    except ValueError:
+        spec = None
+    if spec is None:
+        sys.modules.setdefault(mod, types.ModuleType(mod))
 
 @pytest.fixture
 def dummy_image():
@@ -42,9 +49,14 @@ def pytest_runtest_setup(item):
     """Skip tests marked with 'onnx' if optional deps aren't installed."""
     if "onnx" in item.keywords:
         import importlib.util
-        if (
-            importlib.util.find_spec("onnxruntime") is None
-            or importlib.util.find_spec("fastapi") is None
-        ):
+        try:
+            ort_spec = importlib.util.find_spec("onnxruntime")
+        except ValueError:
+            ort_spec = None
+        try:
+            fastapi_spec = importlib.util.find_spec("fastapi")
+        except ValueError:
+            fastapi_spec = None
+        if ort_spec is None or fastapi_spec is None:
             pytest.skip("Skipping ONNX tests; optional extra not installed")
 
