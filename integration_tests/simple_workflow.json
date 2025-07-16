@@ -63,7 +63,7 @@
     },
     {
       "id": 1,
-      "type": "VisionLLMQuery",
+      "type": "VLLMDualImageQuery",
       "pos": [
         1121.780029296875,
         638.4500122070312
@@ -148,7 +148,7 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "VisionLLMQuery"
+        "Node name for S&R": "VLLMDualImageQuery"
       },
       "widgets_values": [
         "Describe the Image",
