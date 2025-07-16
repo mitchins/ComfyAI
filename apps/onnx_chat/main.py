@@ -1,9 +1,11 @@
 import os
+import logging
 from typing import List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
+
+from .config import load_config
 
 try:
     import onnxruntime as ort
@@ -12,13 +14,23 @@ except Exception:  # pragma: no cover - optional dependency
 
 app = FastAPI()
 
+config = load_config()
+
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+logging.getLogger().addHandler(handler)
+root_level = getattr(logging, config.log_level.upper(), logging.INFO)
+logging.getLogger().setLevel(root_level)
+handler.setLevel(root_level)
+
 class ChatRequest(BaseModel):
     model: str
     messages: List[Dict[str, Any]]
     max_tokens: int | None = None
 
 session = None
-MODEL_PATH = os.environ.get("ONNX_MODEL_PATH")
+MODEL_PATH = config.onnx_model_path
+MODEL_NAME = os.path.basename(MODEL_PATH) if MODEL_PATH else "rules"
 
 
 def load_session():
@@ -69,10 +81,29 @@ async def chat(request: Request):
     }
 
 
+@app.get("/health")
+async def health() -> Dict[str, str]:
+    return {"status": "ok", "model": MODEL_NAME}
+
+
 def main():
+    import argparse
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
+    parser = argparse.ArgumentParser(description="ONNX Chat Server")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=config.port)
+    parser.add_argument("--reload", action="store_true")
+    parser.add_argument("--log-level", default=config.log_level)
+    args = parser.parse_args()
+
+    uvicorn.run(
+        "apps.onnx_chat.main:app",
+        host=args.host,
+        port=args.port,
+        log_level=args.log_level.lower(),
+        reload=args.reload,
+    )
 
 
 if __name__ == "__main__":

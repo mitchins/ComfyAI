@@ -156,13 +156,22 @@ Install the optional extra and run the server:
 
 ```bash
 pip install comfyai[onnx]
-comfyai-onnx-server  # or: python -m apps.onnx_server
+comfyai-onnx-server  # or: python -m apps.onnx_chat.main
 ```
 
 The client node accepts any OpenAI compatible endpoint URL, so you can point it
 to this server, Ollama, or the official OpenAI API.
 
 See [apps/README.md](apps/README.md) for details on the bundled servers.
+
+To build a container:
+
+```bash
+docker build -t onnx-chat \
+  --build-arg DETECTOR_MODEL=deepghs/real_face_detection \
+  --build-arg EMBEDDER_MODEL=Xenova/clip-vit-base-patch32 \
+  apps/onnx_chat
+```
 
 ---
 
@@ -185,6 +194,13 @@ pip install comfyai[onnx]
 
 - `COMFYAI_ENDPOINT` – base URL for API calls (default: `https://api.openai.com/v1`)
 - `COMFYAI_ONNX_PORT` – local ONNX server port (default: `8000`)
+- `LOG_LEVEL` – root log level for both servers (default: `INFO`)
+- `ONNX_MODEL_PATH` – optional path to an ONNX model for the chat server
+- `DETECTOR_MODEL` – face detector repo (required for face API)
+- `DETECTOR_FILE` – file name within the detector repo
+- `EMBEDDER_MODEL_PATH` – embedder repo for the face API
+- `EMBEDDER_FILE` – file name within the embedder repo
+- `THRESHOLD` – override similarity threshold (defaults per model)
 - `FACE_MODEL_PROVIDERS` – comma-separated ONNX providers (default: `CUDAExecutionProvider,CPUExecutionProvider`)
 - `FACE_MODEL_NAME` – InsightFace model name (default: `buffalo_l`)
 

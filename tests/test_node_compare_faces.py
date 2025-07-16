@@ -1,6 +1,10 @@
 import numpy as np
-import importlib, sys
+import importlib, sys, os
 sys.modules.pop("fastapi", None)
+os.environ.setdefault("DETECTOR_MODEL", "dummy")
+os.environ.setdefault("DETECTOR_FILE", "model.onnx")
+os.environ.setdefault("EMBEDDER_MODEL_PATH", "dummy")
+os.environ.setdefault("EMBEDDER_FILE", "model.onnx")
 from fastapi.testclient import TestClient
 
 from apps.face_api.main import app
