@@ -72,7 +72,9 @@ async def chat(request: Request):
 def main():
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
+    port = int(os.environ.get("COMFYAI_ONNX_PORT", "8000"))
+    log_level = os.environ.get("ONNX_LOG_LEVEL", "info")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level=log_level)
 
 
 if __name__ == "__main__":
