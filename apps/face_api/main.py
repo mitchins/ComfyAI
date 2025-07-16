@@ -12,7 +12,33 @@ from huggingface_hub import hf_hub_download
 import shutil
 
 # Requires: pip install dghs-imgutils
-from imgutils.detect.face import detect_faces
+# Heavy imports like imgutils may pull in onnxruntime and fail under
+# environments lacking the correct binaries. Import lazily where used.
+
+# Preset configurations for quick setup
+PRESETS = {
+    "photo": {
+        "detector_repo": "deepghs/real_face_detection",
+        "detector_file": "face_detect_v1.4_s/model.onnx",
+        "embedder_repo": "openailab/onnx-arcface-resnet100-ms1m",
+        "embedder_file": "model.onnx",
+        "threshold": 0.446,
+    },
+    "anime": {
+        "detector_repo": "deepghs/anime_face_detection",
+        "detector_file": "face_detect_v1.4_s/model.onnx",
+        "embedder_repo": "Xenova/clip-vit-base-patch32",
+        "embedder_file": "onnx/vision_model.onnx",
+        "threshold": 0.307,
+    },
+    "cg": {
+        "detector_repo": "deepghs/real_face_detection",
+        "detector_file": "face_detect_v1.4_n/model.onnx",
+        "embedder_repo": "Xenova/clip-vit-base-patch32",
+        "embedder_file": "onnx/vision_model.onnx",
+        "threshold": 0.278,
+    },
+}
 
 # Logging configuration
 logger = logging.getLogger(__name__)
@@ -42,29 +68,45 @@ DEFAULT_THRESHOLD_MAP = {
 DEFAULT_LEVEL = os.getenv("DETECTOR_LEVEL", "s")
 DEFAULT_VERSION = os.getenv("DETECTOR_VERSION", "v1.4")
 
-# Enforce mandatory environment variables
+
 def get_env_var(name: str) -> str:
+    """Helper to read mandatory environment variables."""
     value = os.getenv(name)
     if not value:
         logger.critical(f"Mandatory environment variable '{name}' is not set. Aborting.")
         raise EnvironmentError(f"Mandatory environment variable '{name}' is not set.")
     return value
 
-DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
-DETECTOR_FILE = get_env_var("DETECTOR_FILE")
-EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
-EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
 
-# Optional overrides
-DEFAULT_THRESHOLD = float(os.getenv("DETECTOR_THRESHOLD",
-    DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5)
-))
+preset = os.getenv("PRESET", "").lower()
+if not preset and os.getenv("UNIT_TEST_MODE") == "1":
+    preset = "anime"
+
+if preset in PRESETS:
+    cfg = PRESETS[preset]
+    DETECTOR_MODEL = cfg["detector_repo"]
+    DETECTOR_FILE = cfg["detector_file"]
+    EMBEDDER_MODEL_PATH = cfg["embedder_repo"]
+    EMBEDDER_FILE = cfg["embedder_file"]
+    DEFAULT_THRESHOLD = cfg["threshold"]
+else:
+    DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
+    DETECTOR_FILE = get_env_var("DETECTOR_FILE")
+    EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
+    EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
+    DEFAULT_THRESHOLD = float(
+        os.getenv(
+            "DETECTOR_THRESHOLD",
+            DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5),
+        )
+    )
 
 # Model loader class for modularity
 class ModelLoader:
     def __init__(self):
-        self._detector: Optional[ort.InferenceSession] = None
-        self._embedder: Optional[ort.InferenceSession] = None
+        from typing import Any
+        self._detector: Optional[Any] = None
+        self._embedder: Optional[Any] = None
 
     def _get_providers(self):
         providers = []
@@ -88,7 +130,7 @@ class ModelLoader:
                 raise
         return local_path
 
-    def load_detector(self) -> ort.InferenceSession:
+    def load_detector(self):
         if self._detector is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/detector")
@@ -101,7 +143,7 @@ class ModelLoader:
                 raise
         return self._detector
 
-    def load_embedder(self) -> ort.InferenceSession:
+    def load_embedder(self):
         if self._embedder is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/embedder")
@@ -171,11 +213,15 @@ def get_embedding(image_bytes: bytes) -> Optional[np.ndarray]:
         img_array = np.array(img)
         logger.debug(f"Image converted to array of shape {img_array.shape}")
 
+        # Import here to avoid heavy dependency initialization during module
+        # import when running in constrained environments or tests.
+        from imgutils.detect.face import detect_faces
+
         raw_faces = detect_faces(
             img,
             level=DEFAULT_LEVEL,
             version=DEFAULT_VERSION,
-            conf_threshold=DEFAULT_THRESHOLD
+            conf_threshold=DEFAULT_THRESHOLD,
         )
         faces = [bbox for (bbox, _, _) in raw_faces]
 
