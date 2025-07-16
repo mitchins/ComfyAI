@@ -8,11 +8,14 @@ This project exposes a lightweight HTTP API for text or vision models and can us
 
 ## **✨ Features**  
 
-- ✅ **Text & Vision-Based LLM Inference** – Process **both images and text** in ComfyUI.  
-- ✅ **Multimodal Model Support** – Works with **Qwen-VL**, **Llava**, and more.  
-- ✅ **Stable & Resilient** – Offloads heavy inference to an optional external server.
-- ✅ **Optimized Image Handling** – Minimizes memory usage with **controlled tokenization**.
-- ☁️ **Decoupled Architecture** – The node communicates with any OpenAI-compatible HTTP endpoint so your LLM can run remotely.
+ComfyAI ships with a set of custom nodes for ComfyUI:
+
+- **VLLMTextQuery**, **VLLMImageQuery** and **VLLMDualImageQuery** – send text, one image or two images to your favourite LLM endpoint.
+- **CompareFacesNode** – compare two face images using the optional face API.
+- **ConditionalSaveImage** – only save results when a connected boolean evaluates to `True`.
+
+All nodes communicate with any OpenAI‑compatible HTTP endpoint. Heavy model inference can run remotely, including via the lightweight ONNX server that comes with this repository.
+See [nodes/README.md](nodes/README.md) for a full list of inputs and outputs.
 
 ---
 
@@ -98,7 +101,7 @@ The **Vision LLM** can compare **two images** and **output a True/False result**
 📝 **Example Prompt:**  
 > *"Answer yes or no, are the following two images similarly themed?"*  
 
-💡 **Tip:** This library includes a **`ConditionalSave` node**, which allows saving an image **only if a boolean condition is met**.  
+💡 **Tip:** This library includes a **`ConditionalSaveImage` node**, which saves images **only when a connected boolean input is `True`**.
 
 ---
 
@@ -158,6 +161,8 @@ comfyai-onnx-server  # or: python -m apps.onnx_server
 
 The client node accepts any OpenAI compatible endpoint URL, so you can point it
 to this server, Ollama, or the official OpenAI API.
+
+See [apps/README.md](apps/README.md) for details on the bundled servers.
 
 ---
 
