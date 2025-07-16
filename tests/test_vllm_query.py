@@ -1,5 +1,6 @@
 import unittest
 import types, sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 os.environ.setdefault("UNIT_TEST_MODE", "1")
 torch_stub = types.ModuleType('torch')
 torch_stub.cuda = types.SimpleNamespace(device_count=lambda: 0, empty_cache=lambda: None)
