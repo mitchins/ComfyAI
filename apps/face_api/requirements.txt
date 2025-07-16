@@ -3,3 +3,4 @@ uvicorn
 numpy
 pillow
 insightface
+onnxruntime

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from apps.face_api.main import app
 import apps.face_api.face_model as face_model
-from nodes.compare_faces import CompareFacesNode, send_to_face_api
+from nodes.compare_faces import CompareFacesNode, fetch_face_api_response
 import apps.face_api.main as api_main
 
 client = TestClient(app)
@@ -33,7 +33,7 @@ def test_node_compare_faces(dummy_image, monkeypatch):
             resp = client.post("/v1/image/compare_faces", files={"image_a": f1, "image_b": f2})
         return resp.json()
 
-    monkeypatch.setattr("nodes.compare_faces.send_to_face_api", fake_send)
+    monkeypatch.setattr("nodes.compare_faces.fetch_face_api_response", fake_send)
     monkeypatch.setattr("nodes.compare_faces.tensor_to_pil", lambda x: x)
 
     node = CompareFacesNode()
@@ -52,7 +52,7 @@ def test_node_error(dummy_image, monkeypatch):
             resp = client.post("/v1/image/compare_faces", files={"image_a": f1, "image_b": f2})
         return resp.json()
 
-    monkeypatch.setattr("nodes.compare_faces.send_to_face_api", fake_send)
+    monkeypatch.setattr("nodes.compare_faces.fetch_face_api_response", fake_send)
     monkeypatch.setattr("nodes.compare_faces.tensor_to_pil", lambda x: x)
 
     node = CompareFacesNode()

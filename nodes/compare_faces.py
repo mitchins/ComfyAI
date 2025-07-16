@@ -11,7 +11,15 @@ except Exception:  # pragma: no cover - optional
 from custom_nodes.image_utils import tensor_to_pil
 
 
-def send_to_face_api(api_url: str, image_a: str, image_b: str, timeout: float = 5.0, retries: int = 3, backoff: float = 0.5):
+def fetch_face_api_response(
+    api_url: str,
+    image_a: str,
+    image_b: str,
+    timeout: float = 5.0,
+    retries: int = 3,
+    backoff: float = 0.5,
+) -> dict:
+    """Send two image files to the face API and return the parsed JSON."""
     delay = backoff
     for attempt in range(retries):
         with open(image_a, "rb") as f1, open(image_b, "rb") as f2:
@@ -44,7 +52,13 @@ class CompareFacesNode:
     FUNCTION = "run"
     CATEGORY = "AI/Faces"
 
-    def run(self, image_a, image_b, api_url, threshold=0.72):
+    def run(
+        self,
+        image_a,
+        image_b,
+        api_url: str,
+        threshold: float = 0.72,
+    ) -> tuple[float, bool]:
         if torch is None:
             raise RuntimeError("torch is required")
 
@@ -58,7 +72,7 @@ class CompareFacesNode:
                 tmp_files.append(path)
 
             try:
-                data = send_to_face_api(api_url, tmp_files[0], tmp_files[1])
+                data = fetch_face_api_response(api_url, tmp_files[0], tmp_files[1])
             except Exception:
                 return 0.0, False
 
@@ -73,4 +87,4 @@ class CompareFacesNode:
                     pass
 
 
-__all__ = ["CompareFacesNode"]
+__all__ = ["CompareFacesNode", "fetch_face_api_response"]
