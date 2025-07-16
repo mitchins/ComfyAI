@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import List, Dict, Any
 
@@ -5,26 +6,38 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
+from .config import load_config, Config
+
 try:
     import onnxruntime as ort
 except Exception:  # pragma: no cover - optional dependency
     ort = None
 
+config: Config = load_config()
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=getattr(logging, config.log_level.upper(), logging.INFO),
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
+
 
 class ChatRequest(BaseModel):
     model: str
     messages: List[Dict[str, Any]]
     max_tokens: int | None = None
 
+
 session = None
-MODEL_PATH = os.environ.get("ONNX_MODEL_PATH")
 
 
 def load_session():
     global session
-    if session is None and ort and MODEL_PATH and os.path.exists(MODEL_PATH):
-        session = ort.InferenceSession(MODEL_PATH)
+    if session is None and ort and config.model_path and os.path.exists(config.model_path):
+        session = ort.InferenceSession(config.model_path)
+        logger.info("Loaded ONNX model from %s", config.model_path)
 
 
 def classify(text: str) -> str:
@@ -69,11 +82,24 @@ async def chat(request: Request):
     }
 
 
-def main():
+@app.get("/health")
+async def health() -> Dict[str, str]:
+    model_name = os.path.basename(config.model_path) if config.model_path else "builtin"
+    return {"status": "ok", "model": model_name}
+
+
+def main() -> None:
+    import argparse
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
+    parser = argparse.ArgumentParser(description="ONNX chat server")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=config.port)
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run("apps.onnx_chat.main:app", host=args.host, port=args.port, reload=args.reload, log_level=config.log_level)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

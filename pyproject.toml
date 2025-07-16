@@ -25,4 +25,4 @@ numpy = "^1.23"
 requests = "^2.28"
 
 [project.scripts]
-comfyai-onnx-server = "apps.onnx_server:main"
+comfyai-onnx-server = "apps.onnx_chat.main:main"

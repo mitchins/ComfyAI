@@ -11,8 +11,8 @@ except Exception:  # pragma: no cover - optional
 if TestClient is None:
     pytest.skip("fastapi not available", allow_module_level=True)
 else:
-    from apps.onnx_server import app
-    import apps.onnx_server as onnx_server
+    from apps.onnx_chat.main import app
+    import apps.onnx_chat.main as onnx_server
 
 
 def _client(monkeypatch):
@@ -64,3 +64,11 @@ def test_chat_endpoint_with_two_images(monkeypatch):
     resp = client.post("/v1/chat/completions", json={"model": "test", "messages": [msg]})
     assert resp.status_code == 200
     assert resp.json()["choices"][0]["message"]["content"] == "positive"
+
+
+def test_health_endpoint(monkeypatch):
+    client = _client(monkeypatch)
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"

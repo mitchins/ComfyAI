@@ -7,23 +7,29 @@ import io
 from typing import Optional
 import numpy as np
 from PIL import Image
-import onnxruntime as ort
-from huggingface_hub import hf_hub_download
+try:
+    import onnxruntime as ort
+except Exception:  # pragma: no cover - optional dependency
+    ort = None
+try:
+    from huggingface_hub import hf_hub_download
+except Exception:  # pragma: no cover - optional dependency
+    hf_hub_download = None
 import shutil
 
 # Requires: pip install dghs-imgutils
-from imgutils.detect.face import detect_faces
+try:
+    from imgutils.detect.face import detect_faces
+except Exception:  # pragma: no cover - optional dependency
+    detect_faces = None
 
 # Logging configuration
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+root_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.getLogger().setLevel(getattr(logging, root_level, logging.INFO))
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-logger.addHandler(handler)
-
-level_name = os.getenv("FACE_API_LOG_LEVEL", "INFO").upper()
-level = getattr(logging, level_name, logging.INFO)
-logger.setLevel(level)
-handler.setLevel(level)
 
 # Constants and defaults
 DEFAULT_THRESHOLD_MAP = {
@@ -63,8 +69,8 @@ DEFAULT_THRESHOLD = float(os.getenv("DETECTOR_THRESHOLD",
 # Model loader class for modularity
 class ModelLoader:
     def __init__(self):
-        self._detector: Optional[ort.InferenceSession] = None
-        self._embedder: Optional[ort.InferenceSession] = None
+        self._detector: Optional[object] = None
+        self._embedder: Optional[object] = None
 
     def _get_providers(self):
         providers = []
@@ -88,7 +94,7 @@ class ModelLoader:
                 raise
         return local_path
 
-    def load_detector(self) -> ort.InferenceSession:
+    def load_detector(self):
         if self._detector is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/detector")
@@ -101,7 +107,7 @@ class ModelLoader:
                 raise
         return self._detector
 
-    def load_embedder(self) -> ort.InferenceSession:
+    def load_embedder(self):
         if self._embedder is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/embedder")
@@ -248,7 +254,8 @@ async def compare_faces(
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    model_name = f"{DETECTOR_MODEL}/{DETECTOR_FILE}"
+    return {"status": "ok", "model": model_name}
 
 @app.get("/models/info")
 async def models_info():

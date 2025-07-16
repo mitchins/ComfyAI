@@ -1,16 +1,28 @@
 import numpy as np
-import importlib, sys
+import importlib, sys, os
 sys.modules.pop("fastapi", None)
+os.environ.setdefault("DETECTOR_MODEL", "dummy")
+os.environ.setdefault("DETECTOR_FILE", "model.onnx")
+os.environ.setdefault("EMBEDDER_MODEL_PATH", "dummy")
+os.environ.setdefault("EMBEDDER_FILE", "embed.onnx")
 from fastapi.testclient import TestClient
 from apps.face_api.main import app
 import apps.face_api.face_model as face_model
 import apps.face_api.main as api_main
+
+
+def _set_env(monkeypatch):
+    monkeypatch.setenv("DETECTOR_MODEL", "dummy")
+    monkeypatch.setenv("DETECTOR_FILE", "model.onnx")
+    monkeypatch.setenv("EMBEDDER_MODEL_PATH", "dummy")
+    monkeypatch.setenv("EMBEDDER_FILE", "embed.onnx")
 from apps.face_api.utils import cosine_similarity
 
 client = TestClient(app)
 
 
 def test_compare_faces_success(monkeypatch):
+    _set_env(monkeypatch)
     emb_a = np.array([1.0, 0.0])
     emb_b = np.array([0.5, 0.5])
 
@@ -33,6 +45,7 @@ def test_compare_faces_success(monkeypatch):
 
 
 def test_face_not_detected(monkeypatch):
+    _set_env(monkeypatch)
     monkeypatch.setattr(face_model, "get_embedding", lambda data: None)
     monkeypatch.setattr(api_main, "get_embedding", lambda data: None)
     resp = client.post(
@@ -44,6 +57,7 @@ def test_face_not_detected(monkeypatch):
 
 
 def test_blank_image_fixture(monkeypatch, dummy_image, tmp_path):
+    _set_env(monkeypatch)
     monkeypatch.setattr(face_model, "get_embedding", lambda data: None)
     monkeypatch.setattr(api_main, "get_embedding", lambda data: None)
     path = tmp_path / "blank.png"
@@ -59,6 +73,7 @@ def test_blank_image_fixture(monkeypatch, dummy_image, tmp_path):
 
 
 def test_provider_fallback(monkeypatch):
+    _set_env(monkeypatch)
     calls = {}
 
     class FakeFace:

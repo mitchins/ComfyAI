@@ -1,6 +1,23 @@
+FROM python:3.10-slim AS builder
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 FROM python:3.10-slim
 WORKDIR /app
+COPY --from=builder /usr/local /usr/local
 COPY . /app
-# Install FastAPI, InsightFace, python-multipart, etc.
-RUN pip install --no-cache-dir -r requirements.txt
+
+ARG DETECTOR_MODEL
+ARG DETECTOR_FILE
+ARG EMBEDDER_MODEL_PATH
+ARG EMBEDDER_FILE
+ARG DETECTOR_THRESHOLD
+
+ENV DETECTOR_MODEL=${DETECTOR_MODEL}
+ENV DETECTOR_FILE=${DETECTOR_FILE}
+ENV EMBEDDER_MODEL_PATH=${EMBEDDER_MODEL_PATH}
+ENV EMBEDDER_FILE=${EMBEDDER_FILE}
+ENV DETECTOR_THRESHOLD=${DETECTOR_THRESHOLD}
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
