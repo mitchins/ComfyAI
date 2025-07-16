@@ -5,8 +5,8 @@ import pytest
 
 # Import after setting UNIT_TEST_MODE so the module stubs heavy deps
 os.environ["UNIT_TEST_MODE"] = "1"
-from custom_nodes.conditional_save_image import ConditionalSaveImage
-import custom_nodes.conditional_save_image as conditional_save_image
+from nodes.conditional_save_image import ConditionalSaveImage
+import nodes.conditional_save_image as conditional_save_image
 
 
 class DummyImage:

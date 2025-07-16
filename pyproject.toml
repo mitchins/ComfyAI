@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["custom_nodes*", "apps*"]
+include = ["nodes*", "apps*"]
 
 [project.optional-dependencies]
 onnx = [

@@ -2,7 +2,7 @@ import json
 
 
 def test_vision_llm_query_headless(run_graph, monkeypatch):
-    import custom_nodes.vllm_query as vllm_query
+    import nodes.vllm_query as vllm_query
 
     called = {}
 

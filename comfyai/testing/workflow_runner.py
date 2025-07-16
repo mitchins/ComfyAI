@@ -53,8 +53,8 @@ def _resolve_node_class(class_type: str):
     """Resolve a node class from custom or built-in modules."""
     # custom nodes
     candidates = [
-        "custom_nodes.conditional_save_image",
-        "custom_nodes.vllm_query",
+        "nodes.conditional_save_image",
+        "nodes.vllm_query",
     ]
     for mod_name in candidates:
         try:
