@@ -7,12 +7,39 @@ import io
 from typing import Optional
 import numpy as np
 from PIL import Image
-import onnxruntime as ort
 from huggingface_hub import hf_hub_download
 import shutil
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - for type hints only
+    import onnxruntime as ort
+
+# Preset configurations for quick setup
+PRESETS = {
+    "photo": {
+        "detector_repo": "deepghs/real_face_detection",
+        "detector_file": "face_detect_v1.4_s/model.onnx",
+        "embedder_repo": "openailab/onnx-arcface-resnet100-ms1m",
+        "embedder_file": "model.onnx",
+        "threshold": 0.446,
+    },
+    "anime": {
+        "detector_repo": "deepghs/anime_face_detection",
+        "detector_file": "face_detect_v1.4_s/model.onnx",
+        "embedder_repo": "Xenova/clip-vit-base-patch32",
+        "embedder_file": "onnx/vision_model.onnx",
+        "threshold": 0.307,
+    },
+    "cg": {
+        "detector_repo": "deepghs/real_face_detection",
+        "detector_file": "face_detect_v1.4_n/model.onnx",
+        "embedder_repo": "Xenova/clip-vit-base-patch32",
+        "embedder_file": "onnx/vision_model.onnx",
+        "threshold": 0.278,
+    },
+}
 
 # Requires: pip install dghs-imgutils
-from imgutils.detect.face import detect_faces
 
 # Logging configuration
 logger = logging.getLogger(__name__)
@@ -42,7 +69,7 @@ DEFAULT_THRESHOLD_MAP = {
 DEFAULT_LEVEL = os.getenv("DETECTOR_LEVEL", "s")
 DEFAULT_VERSION = os.getenv("DETECTOR_VERSION", "v1.4")
 
-# Enforce mandatory environment variables
+# Helper for required environment variables
 def get_env_var(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -50,23 +77,32 @@ def get_env_var(name: str) -> str:
         raise EnvironmentError(f"Mandatory environment variable '{name}' is not set.")
     return value
 
-DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
-DETECTOR_FILE = get_env_var("DETECTOR_FILE")
-EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
-EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
-
-# Optional overrides
-DEFAULT_THRESHOLD = float(os.getenv("DETECTOR_THRESHOLD",
-    DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5)
-))
+# Configuration via preset or explicit variables
+preset = os.getenv("PRESET", "").lower()
+if preset in PRESETS:
+    cfg = PRESETS[preset]
+    DETECTOR_MODEL = cfg["detector_repo"]
+    DETECTOR_FILE = cfg["detector_file"]
+    EMBEDDER_MODEL_PATH = cfg["embedder_repo"]
+    EMBEDDER_FILE = cfg["embedder_file"]
+    DEFAULT_THRESHOLD = cfg["threshold"]
+else:
+    DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
+    DETECTOR_FILE = get_env_var("DETECTOR_FILE")
+    EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
+    EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
+    DEFAULT_THRESHOLD = float(
+        os.getenv("DETECTOR_THRESHOLD", DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5))
+    )
 
 # Model loader class for modularity
 class ModelLoader:
     def __init__(self):
-        self._detector: Optional[ort.InferenceSession] = None
-        self._embedder: Optional[ort.InferenceSession] = None
+        self._detector: Optional[object] = None
+        self._embedder: Optional[object] = None
 
     def _get_providers(self):
+        import onnxruntime as ort
         providers = []
         available_providers = ort.get_available_providers()
         if "CUDAExecutionProvider" in available_providers:
@@ -88,7 +124,8 @@ class ModelLoader:
                 raise
         return local_path
 
-    def load_detector(self) -> ort.InferenceSession:
+    def load_detector(self) -> object:
+        import onnxruntime as ort
         if self._detector is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/detector")
@@ -101,7 +138,8 @@ class ModelLoader:
                 raise
         return self._detector
 
-    def load_embedder(self) -> ort.InferenceSession:
+    def load_embedder(self) -> object:
+        import onnxruntime as ort
         if self._embedder is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/embedder")
@@ -167,6 +205,7 @@ async def startup_event():
 def get_embedding(image_bytes: bytes) -> Optional[np.ndarray]:
     logger.debug("Starting embedding extraction")
     try:
+        from imgutils.detect.face import detect_faces
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         img_array = np.array(img)
         logger.debug(f"Image converted to array of shape {img_array.shape}")
