@@ -15,7 +15,27 @@ jobs:
       - name: Install dev
         run: pip install -r requirements-dev.txt
 
+      - name: Install face API deps
+        run: pip install -r apps/face_api/requirements.txt
+
       - name: Run unit tests
         run: pytest tests -ra
       - name: Run integration tests
         run: pytest integration_tests -ra
+
+      - name: Smoke test Face API
+        run: |
+          python - <<'EOF'
+          import base64, subprocess, time, requests
+          proc = subprocess.Popen([
+              'uvicorn', 'apps.face_api.main:app', '--port', '7861'
+          ])
+          time.sleep(2)
+          png = base64.b64decode(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVQYV2NgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII='
+          )
+          files = {'image_a': ('a.png', png), 'image_b': ('b.png', png)}
+          r = requests.post('http://localhost:7861/v1/image/compare_faces', files=files)
+          proc.terminate(); proc.wait()
+          assert r.status_code == 422
+          EOF

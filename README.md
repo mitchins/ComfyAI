@@ -180,12 +180,19 @@ pip install comfyai
 pip install comfyai[onnx]
 ```
 
+
 ### Environment Variables
 
 - `COMFYAI_ENDPOINT` – base URL for API calls (default: `https://api.openai.com/v1`)
 - `COMFYAI_ONNX_PORT` – local ONNX server port (default: `8000`)
 - `FACE_MODEL_PROVIDERS` – comma-separated ONNX providers (default: `CUDAExecutionProvider,CPUExecutionProvider`)
 - `FACE_MODEL_NAME` – InsightFace model name (default: `buffalo_l`)
+
+### Face Comparison API Installation
+
+```bash
+pip install fastapi uvicorn insightface onnxruntime[-gpu] python-multipart
+```
 
 ### Running the Face Comparison API (optional)
 

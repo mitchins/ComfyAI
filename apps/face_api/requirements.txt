@@ -4,3 +4,4 @@ numpy
 pillow
 insightface
 onnxruntime
+python-multipart

@@ -18,6 +18,14 @@ Set `ONNX_MODEL_PATH` to point at an ONNX model file if you have one. The server
 
 `face_api/` hosts a small FastAPI application that compares two face images. It relies on InsightFace and ONNX Runtime to extract embeddings.
 
+### Installation
+
+Install the dependencies if you plan to run the API outside Docker:
+
+```bash
+pip install fastapi uvicorn insightface onnxruntime[-gpu] python-multipart
+```
+
 Launch it using:
 
 ```bash
