@@ -14,6 +14,31 @@ import shutil
 # Requires: pip install dghs-imgutils
 from imgutils.detect.face import detect_faces
 
+# Supported preset configurations
+PRESETS = {
+    "photo": {
+        "detector_repo": "deepghs/real_face_detection",
+        "detector_file": "face_detect_v1.4_s/model.onnx",
+        "embedder_repo": "openailab/onnx-arcface-resnet100-ms1m",
+        "embedder_file": "model.onnx",
+        "threshold": 0.446,
+    },
+    "anime": {
+        "detector_repo": "deepghs/anime_face_detection",
+        "detector_file": "face_detect_v1.4_s/model.onnx",
+        "embedder_repo": "Xenova/clip-vit-base-patch32",
+        "embedder_file": "onnx/vision_model.onnx",
+        "threshold": 0.307,
+    },
+    "cg": {
+        "detector_repo": "deepghs/real_face_detection",
+        "detector_file": "face_detect_v1.4_n/model.onnx",
+        "embedder_repo": "Xenova/clip-vit-base-patch32",
+        "embedder_file": "onnx/vision_model.onnx",
+        "threshold": 0.278,
+    },
+}
+
 # Logging configuration
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
@@ -42,7 +67,7 @@ DEFAULT_THRESHOLD_MAP = {
 DEFAULT_LEVEL = os.getenv("DETECTOR_LEVEL", "s")
 DEFAULT_VERSION = os.getenv("DETECTOR_VERSION", "v1.4")
 
-# Enforce mandatory environment variables
+# Helper to enforce mandatory variables when presets are not used
 def get_env_var(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -50,15 +75,24 @@ def get_env_var(name: str) -> str:
         raise EnvironmentError(f"Mandatory environment variable '{name}' is not set.")
     return value
 
-DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
-DETECTOR_FILE = get_env_var("DETECTOR_FILE")
-EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
-EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
-
-# Optional overrides
-DEFAULT_THRESHOLD = float(os.getenv("DETECTOR_THRESHOLD",
-    DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5)
-))
+# Resolve configuration either from PRESET or individual environment vars
+preset = os.getenv("PRESET", "").lower()
+if preset in PRESETS:
+    cfg = PRESETS[preset]
+    DETECTOR_MODEL = cfg["detector_repo"]
+    DETECTOR_FILE = cfg["detector_file"]
+    EMBEDDER_MODEL_PATH = cfg["embedder_repo"]
+    EMBEDDER_FILE = cfg["embedder_file"]
+    DEFAULT_THRESHOLD = cfg["threshold"]
+else:
+    DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
+    DETECTOR_FILE = get_env_var("DETECTOR_FILE")
+    EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
+    EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
+    DEFAULT_THRESHOLD = float(os.getenv(
+        "DETECTOR_THRESHOLD",
+        DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5),
+    ))
 
 # Model loader class for modularity
 class ModelLoader:
