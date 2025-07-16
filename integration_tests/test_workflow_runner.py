@@ -15,13 +15,13 @@ def test_vision_llm_query_headless(run_graph, monkeypatch):
 
     graph = {
         "1": {
-            "class_type": "VisionLLMQuery",
+            "class_type": "VLLMTextQuery",
             "inputs": {
                 "text_query": "hello",
                 "api_endpoint": "http://host",
                 "api_model": "gpt",
-                "api_key": ""
-            }
+                "api_key": "",
+            },
         }
     }
 

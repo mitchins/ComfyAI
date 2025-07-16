@@ -1,20 +1,35 @@
 import pytest
-from custom_nodes.vllm_query import VisionLLMQuery
+from custom_nodes.vllm_query import (
+    VLLMTextQuery,
+    VLLMImageQuery,
+    VLLMDualImageQuery,
+)
 import custom_nodes.vllm_query as vllm_query
 
 
-def test_contract():
-    cls = VisionLLMQuery
+@pytest.mark.parametrize(
+    "cls,needs_image",
+    [
+        (VLLMTextQuery, 0),
+        (VLLMImageQuery, 1),
+        (VLLMDualImageQuery, 2),
+    ],
+)
+def test_contract(cls, needs_image):
     assert isinstance(cls.CATEGORY, str)
     in_types = cls.INPUT_TYPES()
     for name in ("text_query", "api_endpoint", "api_model", "api_key"):
         assert name in in_types["required"]
+    if needs_image >= 1:
+        assert "image" in in_types["required"]
+    if needs_image >= 2:
+        assert "reference_image" in in_types["required"]
     assert isinstance(cls.RETURN_TYPES, tuple)
     assert hasattr(cls, cls.FUNCTION)
 
 
 def test_run_minimal(dummy_image, monkeypatch):
-    node = VisionLLMQuery()
+    node = VLLMImageQuery()
     monkeypatch.setattr("custom_nodes.vllm_query.chat_completion", lambda *a, **k: "yes")
     monkeypatch.setattr("custom_nodes.vllm_query.fuzzy_match_bool", lambda x: True)
     monkeypatch.setattr("custom_nodes.vllm_query.image_to_bytes", lambda img: b"img")
@@ -31,7 +46,7 @@ def test_run_minimal(dummy_image, monkeypatch):
 
 
 def test_run_with_two_images(monkeypatch):
-    node = VisionLLMQuery()
+    node = VLLMDualImageQuery()
 
     called = {}
 

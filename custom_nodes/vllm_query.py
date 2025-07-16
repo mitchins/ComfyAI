@@ -4,21 +4,25 @@ from .string_utils import fuzzy_match_bool
 from .openai_client import chat_completion
 from .image_utils import image_to_bytes
 
-class VisionLLMQuery:
+
+class _BaseVLLMQuery:
+    """Common logic for LLM queries."""
+
+    required_images = 0
+
     @classmethod
     def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text_query": ("STRING", {"default": "Describe the image.", "multiline": True}),
-                "api_endpoint": ("STRING", {"default": "", "multiline": False}),
-                "api_model": ("STRING", {"default": "gpt-3.5-turbo", "multiline": False}),
-                "api_key": ("STRING", {"default": "", "multiline": False}),
-            },
-            "optional": {
-                "image": ("IMAGE",),
-                "reference_image": ("IMAGE",),
-            },
+        required = {
+            "text_query": ("STRING", {"default": "Describe the image.", "multiline": True}),
+            "api_endpoint": ("STRING", {"default": "", "multiline": False}),
+            "api_model": ("STRING", {"default": "gpt-3.5-turbo", "multiline": False}),
+            "api_key": ("STRING", {"default": "", "multiline": False}),
         }
+        if cls.required_images >= 1:
+            required["image"] = ("IMAGE",)
+        if cls.required_images >= 2:
+            required["reference_image"] = ("IMAGE",)
+        return {"required": required}
 
     RETURN_TYPES = ("STRING", "BOOLEAN", "INT")
     RETURN_NAMES = ("Raw Text", "Boolean", "Number (Boolean)")
@@ -32,20 +36,21 @@ class VisionLLMQuery:
         api_model = inputs.get("api_model", "gpt-3.5-turbo")
         api_key = inputs.get("api_key", "") or None
         text_query = inputs.get("text_query", "")
-        image = inputs.get("image")
-        reference_image = inputs.get("reference_image")
+
+        images = []
+        if self.required_images >= 1:
+            images.append(inputs.get("image"))
+        if self.required_images >= 2:
+            images.append(inputs.get("reference_image"))
 
         content = [{"type": "text", "text": text_query}]
 
         try:
-            if image is not None:
-                img_b = image_to_bytes(image)
-                encoded = base64.b64encode(img_b).decode()
-                content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}"}})
-            if reference_image is not None:
-                ref_b = image_to_bytes(reference_image)
-                encoded = base64.b64encode(ref_b).decode()
-                content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}"}})
+            for img in images:
+                if img is not None:
+                    img_b = image_to_bytes(img)
+                    encoded = base64.b64encode(img_b).decode()
+                    content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}"}})
         except Exception:
             logging.exception("Failed to encode image inputs")
 
@@ -53,7 +58,32 @@ class VisionLLMQuery:
 
         result = chat_completion(api_endpoint, api_model, messages, api_key=api_key)
         bool_output = fuzzy_match_bool(result)
-        # Ensure bool_output is a boolean, default to False if None
         if bool_output is None:
             bool_output = False
         return result, bool_output, int(bool_output)
+
+
+class VLLMTextQuery(_BaseVLLMQuery):
+    """LLM text-only query."""
+
+    required_images = 0
+
+
+class VLLMImageQuery(_BaseVLLMQuery):
+    """LLM query with one image."""
+
+    required_images = 1
+
+
+class VLLMDualImageQuery(_BaseVLLMQuery):
+    """LLM query with two images."""
+
+    required_images = 2
+
+
+__all__ = [
+    "_BaseVLLMQuery",
+    "VLLMTextQuery",
+    "VLLMImageQuery",
+    "VLLMDualImageQuery",
+]
