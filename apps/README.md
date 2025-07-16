@@ -4,15 +4,16 @@ The `apps/` directory contains optional HTTP services that expose lightweight AP
 
 ## ONNX Chat Completion Server
 
-`onnx_server.py` starts a minimal OpenAI compatible endpoint. It can run a toy ONNX model or fall back to very simple rules if no model is provided. Use it when you need a local endpoint for the query nodes.
+`onnx_chat/` hosts a minimal OpenAI compatible endpoint. It runs a toy ONNX model if available and otherwise falls back to a couple of simple rules.
 
 Run it with:
 
 ```bash
-python -m apps.onnx_server
+uvicorn apps.onnx_chat.main:app --host 0.0.0.0 --port 8000
 ```
 
 Set `ONNX_MODEL_PATH` to point at an ONNX model file if you have one. The server listens on port `8000` by default.
+A `Dockerfile` is provided for convenience if you prefer containerised runs.
 
 ## Face Comparison API
 
