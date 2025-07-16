@@ -1,14 +1,22 @@
+from __future__ import annotations
 import os
 from typing import List, Dict, Any
+import argparse
+import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
+from .config import load_config, setup_logging
+
 try:
     import onnxruntime as ort
 except Exception:  # pragma: no cover - optional dependency
     ort = None
+
+setup_logging()
+config = load_config()
 
 app = FastAPI()
 
@@ -17,8 +25,14 @@ class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]]
     max_tokens: int | None = None
 
+
+@app.get("/health")
+async def health_check():
+    model_name = os.path.basename(MODEL_PATH) if MODEL_PATH else "none"
+    return {"status": "ok", "model": model_name}
+
 session = None
-MODEL_PATH = os.environ.get("ONNX_MODEL_PATH")
+MODEL_PATH = config.model_path
 
 
 def load_session():
@@ -69,10 +83,23 @@ async def chat(request: Request):
     }
 
 
-def main():
+def main() -> None:
+    """CLI entry point for running the server via ``python -m``."""
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
+    parser = argparse.ArgumentParser(description="ONNX chat completion server")
+    parser.add_argument("--host", default=config.host)
+    parser.add_argument("--port", type=int, default=config.port)
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run(
+        "apps.onnx_chat.main:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        log_level=config.log_level,
+    )
 
 
 if __name__ == "__main__":

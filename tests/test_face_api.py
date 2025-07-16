@@ -1,5 +1,12 @@
 import numpy as np
 import importlib, sys
+import os
+
+# Ensure mandatory env vars for import
+os.environ.setdefault("DETECTOR_MODEL", "fake")
+os.environ.setdefault("DETECTOR_FILE", "model.onnx")
+os.environ.setdefault("EMBEDDER_MODEL_PATH", "fake")
+os.environ.setdefault("EMBEDDER_FILE", "model.onnx")
 sys.modules.pop("fastapi", None)
 from fastapi.testclient import TestClient
 from apps.face_api.main import app
@@ -82,3 +89,16 @@ def test_provider_fallback(monkeypatch):
     assert calls["name"] == "foo"
     assert calls["providers"] == ["CPUExecutionProvider"]
     assert calls.get("prepared") is True
+
+
+def test_health_and_compare(monkeypatch):
+    monkeypatch.setattr(face_model, "get_embedding", lambda d: None)
+    monkeypatch.setattr(api_main, "get_embedding", lambda d: None)
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+    resp = client.post(
+        "/v1/image/compare_faces",
+        files={"image_a": ("a.png", b"A"), "image_b": ("b.png", b"B")},
+    )
+    assert resp.status_code == 422
