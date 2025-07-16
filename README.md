@@ -202,6 +202,28 @@ uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
 
 Set the environment variables above to tweak model selection or provider order.
 
+#### Preset Examples
+
+```bash
+# Use built-in photo preset
+PRESET=photo \
+PRELOAD_MODELS=true \
+FACE_API_LOG_LEVEL=DEBUG \
+uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
+```
+
+```bash
+# Custom models
+DETECTOR_MODEL=deepghs/real_face_detection \
+DETECTOR_FILE=face_detect_v1.4_s/model.onnx \
+EMBEDDER_MODEL_PATH=openailab/onnx-arcface-resnet100-ms1m \
+EMBEDDER_FILE=model.onnx \
+DETECTOR_THRESHOLD=0.446 \
+PRELOAD_MODELS=true \
+FACE_API_LOG_LEVEL=DEBUG \
+uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
+```
+
 ### Example Usage
 
 ```python
