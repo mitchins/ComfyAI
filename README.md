@@ -49,6 +49,11 @@ Clone this repo inside ComfyUI's `custom_nodes/` folder and install the package:
 cd custom_nodes
 git clone https://github.com/mitchins/ComfyAI.git
 
+# The plugin nodes live in the `nodes/` directory. You can clone the
+# whole repository (as above) or simply copy that folder into a
+# subdirectory, e.g. `custom_nodes/ComfyAI/`.
+# Only the contents of `nodes` are required for ComfyUI plugins.
+
 # Nodes only
 pip install comfyai
 
@@ -175,6 +180,14 @@ pip install comfyai[onnx]
 - `COMFYAI_ONNX_PORT` – local ONNX server port (default: `8000`)
 - `FACE_MODEL_PROVIDERS` – comma-separated ONNX providers (default: `CUDAExecutionProvider,CPUExecutionProvider`)
 - `FACE_MODEL_NAME` – InsightFace model name (default: `buffalo_l`)
+
+### Running the Face Comparison API (optional)
+
+```bash
+uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
+```
+
+Set the environment variables above to tweak model selection or provider order.
 
 ### Example Usage
 
