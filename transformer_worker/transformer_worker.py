@@ -73,12 +73,20 @@ def run_inference(task, processor, model, gpu_device):
     """Runs inference using PNG-encoded images sent from the main process."""
     logger.debug("🟢 Received inference request")
 
-    image_pil = bytes_to_image(task.image_bytes)
-    reference_pil = bytes_to_image(task.reference_bytes) if task.reference_bytes is not None else None
+    messages = [{"role": "user", "content": []}]
 
-    messages = [{"role": "user", "content": [{"type": "image", "image": image_pil}]}]
-    if reference_pil:
+    if task.image_bytes is not None:
+        image_pil = bytes_to_image(task.image_bytes)
+        messages[0]["content"].append({"type": "image", "image": image_pil})
+        logger.debug(f"🖼 Primary image size: {image_pil.size}")
+    else:
+        logger.debug("🖼 No primary image provided")
+
+    if task.reference_bytes is not None:
+        reference_pil = bytes_to_image(task.reference_bytes)
         messages[0]["content"].insert(0, {"type": "image", "image": reference_pil})
+        logger.debug(f"🖼 Reference image size: {reference_pil.size}")
+
     messages[0]["content"].append({"type": "text", "text": task.text_query})
 
     # BEFORE Model Call

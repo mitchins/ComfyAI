@@ -99,7 +99,7 @@ class PersistentInferenceWorker:
         else:
             logging.debug("🟢 STDERR monitoring skipped (Log level is not DEBUG).")
 
-    def start_worker(self):
+    def start_worker(self, extra_args=None):
         """Start the worker process, ensuring it's killed first if necessary."""
         with self.worker_lock:
             if self.worker is not None:
@@ -122,8 +122,12 @@ class PersistentInferenceWorker:
             logging.debug(f"🔧 Original PYTHONPATH: {env.get('PYTHONPATH', '')}")
             env["PYTHONPATH"] = f"{custom_nodes_path}:{env.get('PYTHONPATH', '')}"  # Override PYTHONPATH
 
+            cmd = [sys.executable, "-m", worker_module, self.gpu_device, self.model_name]
+            if extra_args:
+                cmd.extend(extra_args)
+
             self.worker = subprocess.Popen(
-                [sys.executable, "-m", worker_module, self.gpu_device, self.model_name],
+                cmd,
                 stdin=child_conn,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -233,7 +237,8 @@ class PersistentInferenceWorker:
         
 logging.basicConfig(level=logging.DEBUG)
 
-class VisionLLMQuery:    
+class BaseVLLMQuery:
+    """Common logic for all VLLM query nodes."""
     _AVAILABLE_GPUS = None  # Cache for available GPUs
     _AVAILABLE_MODELS = None  # Cache for available models
 
@@ -248,26 +253,9 @@ class VisionLLMQuery:
     def get_available_models(cls):
         """Lazily fetch the available vision models (only once)."""
         if cls._AVAILABLE_MODELS is None:
-            cls._AVAILABLE_MODELS = list_cached_vision_models()
+            models = list_cached_vision_models()
+            cls._AVAILABLE_MODELS = models or ["dummy"]
         return cls._AVAILABLE_MODELS
-    
-    @classmethod
-    def INPUT_TYPES(cls):
-        """Dynamically defines input types, ensuring models & GPUs are listed only when needed."""
-        available_gpus = cls.get_available_gpus()
-        available_models = cls.get_available_models()
-    
-        return {
-            "required": {
-                "image": ("IMAGE",),  # Main image input
-                "text_query": ("STRING", {"default": "Describe the image.", "multiline": True}),
-                "gpu_device": (available_gpus, {"default": available_gpus[0]}),
-                "model_name": (available_models, {"default": available_models[0]}),
-            },
-            "optional": {
-                "reference_image": ("IMAGE",),  # Optional reference image
-            }
-        }
 
     RETURN_TYPES = ("STRING", "BOOLEAN", "INT")
     RETURN_NAMES = ("Raw Text", "Boolean", "Number (Boolean)")
@@ -277,52 +265,46 @@ class VisionLLMQuery:
     def __init__(self):
         self.device = None
 
+    # ----- Hooks -----
+    def create_worker(self, gpu_device, model_name):
+        return PersistentInferenceWorker(gpu_device, model_name)
+
+    def build_task(self, **inputs):
+        raise NotImplementedError
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        raise NotImplementedError
+
+    # ----- Core runtime -----
     def run(self, **inputs):
-        """Uses a persistent worker process to run inference without crashing the parent process."""
-        
-        if "gpu_device" in inputs:
-            gpu_device = inputs["gpu_device"]
-        else:
-            gpu_device = VisionLLMQuery.get_available_gpus()[0]
-            logging.warning(f"Did not receive gpu_device, defaulting to {gpu_device}")
-        
-        if "model_name" in inputs:
-            model_name = inputs["model_name"]
-        else:
-            model_name = VisionLLMQuery.get_available_models()[0]
-            logging.warning(f"Did not receive model, defaulting to {model_name}")
+        """Run inference using a persistent worker process."""
+
+        gpu_device = inputs.get("gpu_device", self.get_available_gpus()[0])
+        model_name = inputs.get("model_name", self.get_available_models()[0])
+
         if has_model_issues(model_name):
             message = f"Model '{strip_warning_prefix(model_name)}' has known issues:"
             message += "\n" + '\n '.join(get_model_issues(model_name))
             logging.error(message)
-            # Raise an error for unsupported model
             raise Exception(message)
-        
-        image = inputs["image"]
-        text_query = inputs.get("text_query", "Describe the image.")
 
-        reference_image = inputs.get("reference_image", None)  # Optional!
-        max_retries = 3
-
-        if not hasattr(self, "worker"):  # Create worker if not already running
+        if not hasattr(self, "worker"):
             logging.debug("🚀 Starting persistent inference worker...")
-            self.worker = PersistentInferenceWorker(gpu_device, model_name)
+            self.worker = self.create_worker(gpu_device, model_name)
 
+        task = self.build_task(**inputs)
+        max_retries = 3
         attempt = 1
         while attempt <= max_retries:
-            image_bytes = image_to_bytes(image)
-            reference_bytes = image_to_bytes(reference_image) if reference_image is not None else None
-            task = TaskData(image_bytes=image_bytes, reference_bytes=reference_bytes, text_query=text_query)
-
-            self.worker.submit_task(task)  # Send task
-            llm_response = self.worker.get_result()  # Wait for response
-
-            is_final_attempt = (attempt == max_retries)  # Cleaner readability
+            self.worker.submit_task(task)
+            llm_response = self.worker.get_result()
+            is_final_attempt = attempt == max_retries
 
             if llm_response is None:
                 logging.error(f"🔥 Worker failed on attempt {attempt}/{max_retries}. Retrying...")
                 log_attempt(model_name, gpu_device, attempt, "Failure", "Empty Response", final=is_final_attempt)
-            elif isinstance(llm_response, Exception):  # Just retry, no worker restart
+            elif isinstance(llm_response, Exception):
                 logging.error(f"🚨 Worker threw an exception: {llm_response}. Retrying task...")
                 log_attempt(model_name, gpu_device, attempt, "Failure", str(llm_response), final=is_final_attempt)
             else:
@@ -334,10 +316,75 @@ class VisionLLMQuery:
                 logging.debug(f"Results: {results}")
 
                 log_attempt(model_name, gpu_device, attempt, "Success", None, final=True)
-                return results  # Success!
+                return results
 
             attempt += 1
-            torch.cuda.empty_cache()  # Clear VRAM between retries
+            torch.cuda.empty_cache()
 
         logging.error(f"❌ All {max_retries} inference attempts failed. Skipping.")
-        return None  # Returns None instead of crashing
+        return None
+
+
+class TextLLMQuery(BaseVLLMQuery):
+    """LLM query for text-only prompts."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        gpus = cls.get_available_gpus()
+        models = cls.get_available_models()
+        return {
+            "required": {
+                "text_query": ("STRING", {"default": "Ask a question.", "multiline": True}),
+                "gpu_device": (gpus, {"default": gpus[0]}),
+                "model_name": (models, {"default": models[0]}),
+            }
+        }
+
+    def build_task(self, **inputs):
+        return TaskData(image_bytes=None, reference_bytes=None, text_query=inputs.get("text_query", ""))
+
+
+class OneImageLLMQuery(BaseVLLMQuery):
+    """LLM query requiring a single image."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        gpus = cls.get_available_gpus()
+        models = cls.get_available_models()
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "text_query": ("STRING", {"default": "Describe the image.", "multiline": True}),
+                "gpu_device": (gpus, {"default": gpus[0]}),
+                "model_name": (models, {"default": models[0]}),
+            }
+        }
+
+    def build_task(self, **inputs):
+        image_bytes = image_to_bytes(inputs["image"])
+        text_query = inputs.get("text_query", "")
+        return TaskData(image_bytes=image_bytes, reference_bytes=None, text_query=text_query)
+
+
+class TwoImageLLMQuery(BaseVLLMQuery):
+    """LLM query that compares two images."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        gpus = cls.get_available_gpus()
+        models = cls.get_available_models()
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "reference_image": ("IMAGE",),
+                "text_query": ("STRING", {"default": "Compare the images.", "multiline": True}),
+                "gpu_device": (gpus, {"default": gpus[0]}),
+                "model_name": (models, {"default": models[0]}),
+            }
+        }
+
+    def build_task(self, **inputs):
+        image_bytes = image_to_bytes(inputs["image"])
+        reference_bytes = image_to_bytes(inputs["reference_image"])
+        text_query = inputs.get("text_query", "")
+        return TaskData(image_bytes=image_bytes, reference_bytes=reference_bytes, text_query=text_query)
