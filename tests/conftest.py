@@ -13,8 +13,12 @@ if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
 # Stub heavy modules so imports never fail
+import importlib.machinery
 for mod in ("torch", "onnxruntime", "fastapi", "uvicorn"):
-    sys.modules.setdefault(mod, types.ModuleType(mod))
+    if mod not in sys.modules:
+        module = types.ModuleType(mod)
+        module.__spec__ = importlib.machinery.ModuleSpec(mod, loader=None)
+        sys.modules[mod] = module
 
 @pytest.fixture
 def dummy_image():
