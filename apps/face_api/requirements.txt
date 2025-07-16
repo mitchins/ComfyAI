@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+insightface
+onnxruntime
+numpy
+pillow
