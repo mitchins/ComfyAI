@@ -171,3 +171,4 @@ ComfyUI_repo/
 # PyPI configuration file
 .pypirc
 logs/
+**/.DS_Store
