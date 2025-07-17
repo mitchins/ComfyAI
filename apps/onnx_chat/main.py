@@ -2,13 +2,13 @@ from __future__ import annotations
 import os
 from typing import List, Dict, Any
 import argparse
-import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from .config import load_config, setup_logging
+from apps.hf_utils import download_model
 
 try:
     import onnxruntime as ort
@@ -28,21 +28,33 @@ class ChatRequest(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    model_name = os.path.basename(MODEL_PATH) if MODEL_PATH else "none"
+    model_name = os.path.basename(config.model_path) if config.model_path else "none"
     return {"status": "ok", "model": model_name}
 
-session = None
-MODEL_PATH = config.model_path
+CACHE_ROOT = os.path.expanduser("~/.cache/onnx_chat")
+_SESSIONS: dict[str, Any] = {}
 
 
-def load_session():
-    global session
-    if session is None and ort and MODEL_PATH and os.path.exists(MODEL_PATH):
-        session = ort.InferenceSession(MODEL_PATH)
+def _get_session(model_id: str):
+    if model_id in _SESSIONS:
+        return _SESSIONS[model_id]
+    if ort is None:
+        return None
+    path = model_id
+    if not os.path.exists(path):
+        try:
+            repo_id, filename = model_id.rsplit("/", 1)
+        except ValueError:
+            return None
+        cache_dir = os.path.join(CACHE_ROOT, repo_id)
+        path = download_model(repo_id, filename, cache_dir)
+    session = ort.InferenceSession(path)
+    _SESSIONS[model_id] = session
+    return session
 
 
-def classify(text: str) -> str:
-    load_session()
+def classify(text: str, model_id: str) -> str:
+    session = _get_session(model_id)
     if session is None:
         # Fallback simple rule when ONNX model is unavailable
         return "positive" if "good" in text.lower() else "negative"
@@ -72,7 +84,7 @@ async def chat(request: Request):
                     text += part.get("text", "")
         else:
             text = str(content)
-    result = classify(text)
+    result = classify(text, req.model)
     return {
         "id": "cmpl-001",
         "object": "chat.completion",
