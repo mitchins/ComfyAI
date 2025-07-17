@@ -216,6 +216,17 @@ pip install -r apps/onnx_chat/requirements.txt
 pip install -r apps/face_api/requirements.txt
 ```
 
+### Unified API server with cache manager
+
+Run all endpoints together:
+
+```bash
+uvicorn comfyai.main:app --host 0.0.0.0 --port 8000
+```
+
+This exposes the chat, face and manage routes. The web UI is served at `/manage/ui/`.
+
+
 
 ### Environment Variables
 

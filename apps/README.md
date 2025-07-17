@@ -28,3 +28,14 @@ PRESET=photo|anime|cg uvicorn apps.face_api.main:app
 ```
 
 Full documentation is available in [face_api/README.md](face_api/README.md).
+
+## Manage Cache API
+
+This router exposes endpoints to inspect the Hugging Face cache, download files and delete entries. It ships with the unified server:
+
+```bash
+uvicorn comfyai.main:app
+```
+
+When running the unified app, a simple UI is served from `/manage/ui/`.
+
