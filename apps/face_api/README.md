@@ -4,9 +4,13 @@ A lightweight FastAPI service that compares two face images. It downloads ONNX m
 
 ## Installation
 
+Install dependencies:
+
 ```bash
-pip install fastapi uvicorn insightface onnxruntime[-gpu] python-multipart
+pip install -r requirements.txt
 ```
+
+For GPU acceleration, you may replace `onnxruntime` with `onnxruntime-gpu`.
 
 ## Usage
 
