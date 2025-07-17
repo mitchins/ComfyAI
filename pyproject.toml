@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["nodes*", "apps*"]
+include = ["nodes*", "apps*", "comfyai*", "common*"]
 
 [project.optional-dependencies]
 onnx = [
