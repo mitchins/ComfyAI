@@ -1,10 +1,11 @@
 # Embedded Servers
 
-The `apps/` directory contains optional HTTP services that expose lightweight APIs used by some nodes.
+This directory hosts optional HTTP services used by some ComfyAI nodes.
+Each service can run locally for lightweight inference.
 
-## ONNX Chat Completion Server
+## onnx_chat
 
-`onnx_chat/` contains a minimal OpenAI compatible endpoint. It can run a toy ONNX model or fall back to very simple rules if no model is provided. Use it when you need a local endpoint for the query nodes.
+A minimal OpenAI-compatible chat completion server.
 
 Run it with:
 
@@ -12,63 +13,18 @@ Run it with:
 python -m apps.onnx_chat.main
 ```
 
-Set `ONNX_MODEL_PATH` to point at an ONNX model file if you have one. The server listens on port `8000` by default and honours `COMFYAI_ONNX_PORT` and `ONNX_LOG_LEVEL`.
+See [onnx_chat/README.md](onnx_chat/README.md) for all configuration options and
+Docker usage.
 
-Build a container using the supplied Dockerfile if preferred:
+## face_api
 
-```bash
-docker build -t onnx-chat apps/onnx_chat
-docker run -p 8000:8000 onnx-chat
-```
+A FastAPI application that compares two faces and returns a similarity score.
 
-### Custom environment overrides
-
-Launch with alternative models by setting environment variables before starting
-uvicorn:
-
-```bash
-DETECTOR_MODEL=deepghs/real_face_detection \
-EMBEDDER_MODEL_PATH=Xenova/clip-vit-base-patch32 \
-DETECTOR_THRESHOLD=0.65 \
-uvicorn apps.face_api.main:app --reload
-```
-
-`DETECTOR_THRESHOLD` falls back to a preset per detector model but can always be
-overridden.
-
-## Face Comparison API
-
-`face_api/` hosts a small FastAPI application that compares two face images. It relies on InsightFace and ONNX Runtime to extract embeddings.
-
-### Installation
-
-Install the dependencies if you plan to run the API outside Docker:
-
-```bash
-pip install fastapi uvicorn insightface onnxruntime[-gpu] python-multipart
-```
-
-Launch it using:
+Start it with:
 
 ```bash
 uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
 ```
 
-Or build and run the Docker image:
-
-```bash
-docker build -t face-api apps/face_api
-docker run -p 7860:7860 face-api
-```
-
-Several environment variables let you tune which provider or model is used:
-
-- `FACE_MODEL_PROVIDERS` – comma separated list of ONNX providers (default: `CUDAExecutionProvider,CPUExecutionProvider`)
-- `FACE_MODEL_NAME` – name of the InsightFace model (default: `buffalo_l`)
-- `DETECTOR_MODEL` – HuggingFace repo containing the detector model
-- `DETECTOR_FILE` – path to the detector ONNX file
-- `EMBEDDER_MODEL_PATH` – repo for the embedding model
-- `EMBEDDER_FILE` – embedding ONNX file
-- `DETECTOR_THRESHOLD` – similarity threshold override
-
-The `CompareFacesNode` sends images to this API and receives a similarity score.
+See [face_api/README.md](face_api/README.md) for presets, environment variables
+and CLI examples.

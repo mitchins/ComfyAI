@@ -181,33 +181,7 @@ pip install comfyai[onnx]
 ```
 
 
-### Environment Variables
-
-- `COMFYAI_ENDPOINT` – base URL for API calls (default: `https://api.openai.com/v1`)
-- `COMFYAI_ONNX_PORT` – local ONNX server port (default: `8000`)
-- `ONNX_LOG_LEVEL` – uvicorn log level for the chat server (default: `info`)
-- `LOG_LEVEL` – format-consistent Python logging level (default: `INFO`)
-- `FACE_MODEL_PROVIDERS` – comma-separated ONNX providers (default: `CUDAExecutionProvider,CPUExecutionProvider`)
-- `FACE_MODEL_NAME` – InsightFace model name (default: `buffalo_l`)
-- `DETECTOR_MODEL` – HuggingFace repository for the face detector
-- `DETECTOR_FILE` – path to the ONNX detector model file within the repo
-- `EMBEDDER_MODEL_PATH` – repository for the embedding model
-- `EMBEDDER_FILE` – path to the embedder ONNX file
-- `DETECTOR_THRESHOLD` – optional threshold override (default per model)
-
-### Face Comparison API Installation
-
-```bash
-pip install fastapi uvicorn insightface onnxruntime[-gpu] python-multipart
-```
-
-### Running the Face Comparison API (optional)
-
-```bash
-uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
-```
-
-Set the environment variables above to tweak model selection or provider order.
+See [apps/README.md](apps/README.md) for details on the optional ONNX servers.
 
 ### Example Usage
 
