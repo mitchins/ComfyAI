@@ -190,18 +190,18 @@ See [apps/face_api/README.md](apps/face_api/README.md) and [apps/onnx_chat/READM
 Zero‑config preset example:
 
 ```bash
-uvicorn apps.face_api.main:app --preset photo
+PRESET=photo uvicorn apps.face_api.main:app
 ```
-Available presets: `photo` (default), `anime` and `cg`. Use `--preset <name>` to switch between them.
+Available presets: `photo` (default), `anime` and `cg`. Use `PRESET=<name>` when running uvicorn or `--preset <name>` with `python -m apps.face_api.main`.
 
 Custom models:
 
 ```bash
-uvicorn apps.face_api.main:app \
-  --detector-model deepghs/real_face_detection \
-  --detector-file face_detect_v1.4_s/model.onnx \
-  --embedder-model-path openailab/onnx-arcface-resnet100-ms1m \
-  --embedder-file model.onnx
+DETECTOR_MODEL=deepghs/real_face_detection \
+DETECTOR_FILE=face_detect_v1.4_s/model.onnx \
+EMBEDDER_MODEL_PATH=openailab/onnx-arcface-resnet100-ms1m \
+EMBEDDER_FILE=model.onnx \
+uvicorn apps.face_api.main:app
 ```
 
 Edit `apps/face_api/presets.py` to add or remove presets.
