@@ -37,7 +37,8 @@ def dummy_int():
 @pytest.fixture
 def run_graph():
     """Execute a mini-graph via the workflow runner."""
-    from comfyai.testing.workflow_runner import run_workflow_from_json
+    # Import the helper from the integration test support package
+    from integration_tests.support.workflow_runner import run_workflow_from_json
     return run_workflow_from_json
 
 
