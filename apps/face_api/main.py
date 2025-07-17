@@ -1,9 +1,9 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
 import asyncio
+import io
 import logging
 import os
-import io
 from typing import Optional
 import numpy as np
 from PIL import Image
@@ -23,11 +23,10 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     detect_faces = None
 
-# Logging configuration
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+from .config import load_config, setup_logging
+
+setup_logging()
+config = load_config()
 logger = logging.getLogger(__name__)
 
 # Constants and defaults
@@ -44,26 +43,15 @@ DEFAULT_THRESHOLD_MAP = {
     "face_detect_v1.1_s/model.onnx": 0.405,
 }
 
-DEFAULT_LEVEL = os.getenv("DETECTOR_LEVEL", "s")
-DEFAULT_VERSION = os.getenv("DETECTOR_VERSION", "v1.4")
+DEFAULT_LEVEL = "s"
+DEFAULT_VERSION = "v1.4"
 
-# Enforce mandatory environment variables
-def get_env_var(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        logger.critical(f"Mandatory environment variable '{name}' is not set. Aborting.")
-        raise EnvironmentError(f"Mandatory environment variable '{name}' is not set.")
-    return value
+DETECTOR_MODEL = config.detector_model
+DETECTOR_FILE = config.detector_file
+EMBEDDER_MODEL_PATH = config.embedder_model_path
+EMBEDDER_FILE = config.embedder_file
 
-DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
-DETECTOR_FILE = get_env_var("DETECTOR_FILE")
-EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
-EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
-
-# Optional overrides
-DEFAULT_THRESHOLD = float(os.getenv("DETECTOR_THRESHOLD",
-    DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5)
-))
+DEFAULT_THRESHOLD = config.threshold
 
 # Model loader class for modularity
 class ModelLoader:
@@ -155,7 +143,11 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 app = FastAPI()
 model_loader = ModelLoader()
 
-PRELOAD_MODELS = os.getenv("PRELOAD_MODELS", "false").lower() in ("1", "true", "yes")
+app.state.detector_path = f"{DETECTOR_MODEL}/{DETECTOR_FILE}"
+app.state.embedder_path = f"{EMBEDDER_MODEL_PATH}/{EMBEDDER_FILE}"
+app.state.threshold = DEFAULT_THRESHOLD
+
+PRELOAD_MODELS = config.preload_models
 
 @app.on_event("startup")
 async def startup_event():
@@ -265,9 +257,46 @@ async def models_info():
     }
 
 def main():  # pragma: no cover
+    import argparse
     import uvicorn
-    log_level_name = os.getenv("FACE_API_LOG_LEVEL", os.getenv("LOG_LEVEL", "INFO")).upper()
-    uvicorn.run(app, host="0.0.0.0", port=7860, log_level=log_level_name.lower())
+
+    parser = argparse.ArgumentParser(description="Face comparison API")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--detector-model")
+    parser.add_argument("--detector-file")
+    parser.add_argument("--embedder-model-path")
+    parser.add_argument("--embedder-file")
+    parser.add_argument("--threshold", type=float)
+    parser.add_argument("--preset")
+    args = parser.parse_args()
+
+    # reload config with CLI overrides
+    global config, DETECTOR_MODEL, DETECTOR_FILE, EMBEDDER_MODEL_PATH, EMBEDDER_FILE, DEFAULT_THRESHOLD, PRELOAD_MODELS
+    config = load_config([
+        f"--detector-model={args.detector_model}" if args.detector_model else "",
+        f"--detector-file={args.detector_file}" if args.detector_file else "",
+        f"--embedder-model-path={args.embedder_model_path}" if args.embedder_model_path else "",
+        f"--embedder-file={args.embedder_file}" if args.embedder_file else "",
+        f"--threshold={args.threshold}" if args.threshold is not None else "",
+        f"--preset={args.preset}" if args.preset else "",
+    ])
+    DETECTOR_MODEL = config.detector_model
+    DETECTOR_FILE = config.detector_file
+    EMBEDDER_MODEL_PATH = config.embedder_model_path
+    EMBEDDER_FILE = config.embedder_file
+    DEFAULT_THRESHOLD = config.threshold
+    PRELOAD_MODELS = config.preload_models
+    app.state.detector_path = f"{DETECTOR_MODEL}/{DETECTOR_FILE}"
+    app.state.embedder_path = f"{EMBEDDER_MODEL_PATH}/{EMBEDDER_FILE}"
+    app.state.threshold = DEFAULT_THRESHOLD
+
+    uvicorn.run(
+        "apps.face_api.main:app",
+        host=args.host,
+        port=args.port,
+        log_level=config.log_level,
+    )
 
 if __name__ == "__main__":  # pragma: no cover
     main()
