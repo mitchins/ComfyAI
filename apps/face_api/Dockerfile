@@ -18,4 +18,4 @@ ENV DETECTOR_MODEL=$DETECTOR_MODEL \
     DETECTOR_FILE=$DETECTOR_FILE \
     EMBEDDER_MODEL_PATH=$EMBEDDER_MODEL_PATH \
     EMBEDDER_FILE=$EMBEDDER_FILE
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "comfyai.main:app", "--host", "0.0.0.0", "--port", "8000"]
