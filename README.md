@@ -207,7 +207,28 @@ pip install fastapi uvicorn insightface onnxruntime[-gpu] python-multipart
 uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
 ```
 
-Set the environment variables above to tweak model selection or provider order.
+Configuration values are resolved in this order: **environment variables → CLI flags → presets**.
+Set the environment variables above or pass flags to override the built-in presets.
+
+Zero‑config example using a preset:
+
+```bash
+uvicorn apps.face_api.main:app --preset photo
+```
+
+Custom models via CLI flags:
+
+```bash
+uvicorn apps.face_api.main:app \
+  --detector-model deepghs/real_face_detection \
+  --detector-file face_detect_v1.4_s/model.onnx \
+  --embedder-model-path openailab/onnx-arcface-resnet100-ms1m \
+  --embedder-file model.onnx
+```
+
+Add or remove presets by editing `apps/face_api/presets.py`.
+
+Set environment variables to tweak model selection or provider order.
 
 ### Example Usage
 
