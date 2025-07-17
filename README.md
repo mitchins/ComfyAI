@@ -192,6 +192,7 @@ Zero‑config preset example:
 ```bash
 uvicorn apps.face_api.main:app --preset photo
 ```
+Available presets: `photo` (default), `anime` and `cg`. Use `--preset <name>` to switch between them.
 
 Custom models:
 

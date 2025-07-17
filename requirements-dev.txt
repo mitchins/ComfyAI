@@ -1,5 +1,4 @@
 -r requirements.txt
+-r apps/face_api/requirements.txt
 pytest>=7.0
-pillow>=9.0
-numpy>=1.23
-requests>=2.28
+httpx

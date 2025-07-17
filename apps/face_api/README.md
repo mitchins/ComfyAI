@@ -4,9 +4,13 @@ A lightweight FastAPI service that compares two face images. It downloads ONNX m
 
 ## Installation
 
+Install dependencies:
+
 ```bash
-pip install fastapi uvicorn insightface onnxruntime[-gpu] python-multipart
+pip install -r requirements.txt
 ```
+
+For GPU acceleration, you may replace `onnxruntime` with `onnxruntime-gpu`.
 
 ## Usage
 
@@ -28,6 +32,16 @@ You can configure models and runtime behaviour using environment variables or CL
 - `FACE_MODEL_NAME` – InsightFace model name (default: `buffalo_l`)
 - `PRELOAD_MODELS` – set to `1` to load models at startup
 - `FACE_API_LOG_LEVEL` / `LOG_LEVEL` – logging level
+
+### Built-in Presets
+
+Name | Detector | Embedder | Threshold | Use case
+---- | -------- | -------- | --------- | --------
+**photo** | `deepghs/real_face_detection` + `face_detect_v1.4_s` | `openailab/onnx-arcface-resnet100-ms1m` | `0.446` | Real photographs (default)
+**anime** | `deepghs/anime_face_detection` + `face_detect_v1.4_s` | `Xenova/clip-vit-base-patch32` | `0.307` | Anime-style images
+**cg** | `deepghs/real_face_detection` + `face_detect_v1.4_n` | `Xenova/clip-vit-base-patch32` | `0.278` | CG/digital characters
+
+The **photo** preset is recommended for most workflows and is used in the documentation examples above.
 
 ### Examples
 
