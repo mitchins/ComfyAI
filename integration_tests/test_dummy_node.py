@@ -1,5 +1,5 @@
 import json
-from comfyai.testing import workflow_runner
+from integration_tests.support import workflow_runner
 
 
 def test_dummy_node(monkeypatch, run_graph):
