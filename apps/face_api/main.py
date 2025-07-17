@@ -70,18 +70,16 @@ class ModelLoader:
         return providers
 
     def _download_model(self, model_id: str, filename: str, cache_dir: str) -> str:
-        local_path = os.path.join(cache_dir, filename)
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        """Wrapper around the shared Hugging Face downloader."""
+        from apps.hf_cache import download_file
 
-        if not os.path.exists(local_path):
-            try:
-                downloaded_path = hf_hub_download(repo_id=model_id, filename=filename)
-                shutil.copy(downloaded_path, local_path)
-                logger.info(f"Downloaded {model_id}/{filename} to {local_path}")
-            except Exception as e:
-                logger.exception(f"Failed to download model {model_id}/{filename}; aborting startup")
-                raise
-        return local_path
+        try:
+            return download_file(model_id, filename, cache_dir)
+        except Exception:
+            logger.exception(
+                f"Failed to download model {model_id}/{filename}; aborting startup"
+            )
+            raise
 
     def load_detector(self):
         if self._detector is None:

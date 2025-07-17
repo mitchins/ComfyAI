@@ -8,6 +8,7 @@ class Config:
     model_path: str | None
     port: int
     log_level: str
+    hf_cache_dir: str
     host: str = "0.0.0.0"
 
 
@@ -18,7 +19,8 @@ def load_config() -> Config:
         raise FileNotFoundError(f"ONNX model path '{model_path}' does not exist")
     port = int(os.getenv("COMFYAI_ONNX_PORT", "8000"))
     log_level = os.getenv("ONNX_LOG_LEVEL", "info")
-    return Config(model_path=model_path, port=port, log_level=log_level)
+    cache_dir = os.getenv("HF_MODEL_CACHE", os.path.expanduser("~/.cache/onnx_chat"))
+    return Config(model_path=model_path, port=port, log_level=log_level, hf_cache_dir=cache_dir)
 
 
 def setup_logging() -> None:

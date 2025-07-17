@@ -20,6 +20,7 @@ def _client(monkeypatch):
         pytest.skip("fastapi not available")
     # ensure classify returns predictable output
     monkeypatch.setattr(onnx_server, "classify", lambda text: "positive")
+    monkeypatch.setattr(onnx_server, "load_pipeline", lambda m: None)
     return TestClient(app)
 
 

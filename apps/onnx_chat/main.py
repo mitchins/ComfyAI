@@ -1,6 +1,8 @@
 from __future__ import annotations
 import os
 from typing import List, Dict, Any
+
+from apps.hf_cache import download_repo
 import argparse
 import logging
 
@@ -10,6 +12,13 @@ from pydantic import BaseModel, ValidationError
 
 from .config import load_config, setup_logging
 
+try:  # optional heavy deps
+    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+except Exception:  # pragma: no cover - optional dependency
+    AutoModelForCausalLM = None  # type: ignore
+    AutoTokenizer = None  # type: ignore
+    pipeline = None  # type: ignore
+
 try:
     import onnxruntime as ort
 except Exception:  # pragma: no cover - optional dependency
@@ -18,7 +27,23 @@ except Exception:  # pragma: no cover - optional dependency
 setup_logging()
 config = load_config()
 
+HF_CACHE_DIR = config.hf_cache_dir
+PIPELINES: dict[str, Any] = {}
+
 app = FastAPI()
+
+
+def load_pipeline(model_id: str):
+    """Return a cached text generation pipeline for the given model."""
+    if pipeline is None or AutoTokenizer is None or AutoModelForCausalLM is None:
+        return None
+    if model_id not in PIPELINES:
+        cache_dir = os.path.join(HF_CACHE_DIR, model_id.replace("/", "_"))
+        local_repo = download_repo(model_id, cache_dir)
+        tokenizer = AutoTokenizer.from_pretrained(local_repo)
+        model = AutoModelForCausalLM.from_pretrained(local_repo)
+        PIPELINES[model_id] = pipeline("text-generation", model=model, tokenizer=tokenizer)
+    return PIPELINES[model_id]
 
 class ChatRequest(BaseModel):
     model: str
@@ -29,7 +54,11 @@ class ChatRequest(BaseModel):
 @app.get("/health")
 async def health_check():
     model_name = os.path.basename(MODEL_PATH) if MODEL_PATH else "none"
-    return {"status": "ok", "model": model_name}
+    return {
+        "status": "ok",
+        "model": model_name,
+        "loaded_pipelines": list(PIPELINES.keys()),
+    }
 
 session = None
 MODEL_PATH = config.model_path
@@ -72,7 +101,16 @@ async def chat(request: Request):
                     text += part.get("text", "")
         else:
             text = str(content)
-    result = classify(text)
+    pipe = load_pipeline(req.model)
+    if pipe is not None:
+        try:
+            out = pipe(text, max_new_tokens=req.max_tokens or 16)
+            result = out[0].get("generated_text", "")
+        except Exception:
+            logging.getLogger(__name__).exception("Pipeline inference failed; falling back")
+            result = classify(text)
+    else:
+        result = classify(text)
     return {
         "id": "cmpl-001",
         "object": "chat.completion",
