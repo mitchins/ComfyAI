@@ -6,7 +6,41 @@ This project exposes a lightweight HTTP API for text or vision models and can us
 
 ---
 
-## **✨ Features**  
+## Quick Start
+
+**Node usage**
+
+1. Copy the `nodes/` folder into `custom_nodes/ComfyAI` inside your ComfyUI installation (or clone this repo there).
+2. Install dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+**Server usage**
+
+1. Install server dependencies:
+
+   ```bash
+   pip install -r apps/onnx_chat/requirements.txt
+   pip install -r apps/face_api/requirements.txt
+   ```
+2. Run the lightweight chat server:
+
+   ```bash
+   python -m apps.onnx_chat.main  # or: uvicorn apps.onnx_chat.main:app
+   ```
+3. Start the face API with a preset:
+
+   ```bash
+   PRESET=photo|anime|cg uvicorn apps.face_api.main:app
+   ```
+
+More details are available in the sections below.
+
+---
+
+## **✨ Features**
 
 ComfyAI ships with a set of custom nodes for ComfyUI:
 
@@ -58,11 +92,12 @@ git clone https://github.com/mitchins/ComfyAI.git
 # subdirectory, e.g. `custom_nodes/ComfyAI/`.
 # Only the contents of `nodes/` are required for the ComfyUI plugin.
 
-# Nodes only
-pip install comfyai
+# Install node dependencies
+pip install -r requirements.txt
 
-# Optional ONNX server
-pip install comfyai[onnx]
+# Optional server dependencies
+pip install -r apps/onnx_chat/requirements.txt
+pip install -r apps/face_api/requirements.txt
 ```
 
 ---
@@ -152,11 +187,11 @@ Then, **select it inside the ComfyUI node settings**.
 
 ### 🛰️ Running the optional ONNX server
 Use the built-in script if you want a lightweight OpenAI compatible endpoint.
-Install the optional extra and run the server:
+Install the server requirements and run:
 
 ```bash
-pip install comfyai[onnx]
-comfyai-onnx-server  # or: python -m apps.onnx_chat.main
+pip install -r apps/onnx_chat/requirements.txt
+python -m apps.onnx_chat.main  # or: uvicorn apps.onnx_chat.main:app
 ```
 
 The client node accepts any OpenAI compatible endpoint URL, so you can point it
@@ -168,16 +203,17 @@ See [apps/README.md](apps/README.md) for details on the bundled servers.
 
 ## Installation & Runners
 
-**Default** (remote OpenAI):
+Install the base requirements:
 
 ```bash
-pip install comfyai
+pip install -r requirements.txt
 ```
 
-**Optional ONNX VLLM server**:
+Optional servers have their own requirements files:
 
 ```bash
-pip install comfyai[onnx]
+pip install -r apps/onnx_chat/requirements.txt
+pip install -r apps/face_api/requirements.txt
 ```
 
 
