@@ -4,6 +4,12 @@ from typing import List, Dict, Any
 import argparse
 import logging
 
+try:
+    from transformers import pipeline
+except Exception:  # pragma: no cover - optional dependency
+    pipeline = None
+from apps.hf_utils import download_repo
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
@@ -33,6 +39,8 @@ async def health_check():
 
 session = None
 MODEL_PATH = config.model_path
+_hf_pipelines: dict[str, Any] = {}
+HF_CACHE = os.path.expanduser("~/.cache/onnx_chat/models")
 
 
 def load_session():
@@ -41,14 +49,28 @@ def load_session():
         session = ort.InferenceSession(MODEL_PATH)
 
 
-def classify(text: str) -> str:
+def get_pipeline(model_name: str):
+    if pipeline is None:
+        raise RuntimeError("transformers is not available")
+    if model_name not in _hf_pipelines:
+        model_dir = download_repo(model_name, HF_CACHE)
+        _hf_pipelines[model_name] = pipeline("text-generation", model=model_dir, tokenizer=model_dir)
+    return _hf_pipelines[model_name]
+
+
+def classify(text: str, model_name: str) -> str:
+    """Classify or generate text using ONNX or Hugging Face models."""
     load_session()
-    if session is None:
-        # Fallback simple rule when ONNX model is unavailable
+    if session is not None:
+        inputs = {session.get_inputs()[0].name: [[ord(c) for c in text]]}
+        outputs = session.run(None, inputs)[0]
+        return str(outputs[0])
+    try:
+        pipe = get_pipeline(model_name)
+        result = pipe(text, max_new_tokens=20)
+        return result[0]["generated_text"]
+    except Exception:
         return "positive" if "good" in text.lower() else "negative"
-    inputs = {session.get_inputs()[0].name: [[ord(c) for c in text]]}
-    outputs = session.run(None, inputs)[0]
-    return str(outputs[0])
 
 
 @app.post("/v1/chat/completions")
@@ -72,7 +94,7 @@ async def chat(request: Request):
                     text += part.get("text", "")
         else:
             text = str(content)
-    result = classify(text)
+    result = classify(text, req.model)
     return {
         "id": "cmpl-001",
         "object": "chat.completion",

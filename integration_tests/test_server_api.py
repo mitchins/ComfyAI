@@ -19,7 +19,7 @@ def _client(monkeypatch):
     if TestClient is None:
         pytest.skip("fastapi not available")
     # ensure classify returns predictable output
-    monkeypatch.setattr(onnx_server, "classify", lambda text: "positive")
+    monkeypatch.setattr(onnx_server, "classify", lambda text, model: "positive")
     return TestClient(app)
 
 
@@ -64,3 +64,21 @@ def test_chat_endpoint_with_two_images(monkeypatch):
     resp = client.post("/v1/chat/completions", json={"model": "test", "messages": [msg]})
     assert resp.status_code == 200
     assert resp.json()["choices"][0]["message"]["content"] == "positive"
+
+
+def test_model_name_forwarded(monkeypatch):
+    if TestClient is None:
+        pytest.skip("fastapi not available")
+    called = {}
+
+    def fake_classify(text, model):
+        called["model"] = model
+        return "ok"
+
+    monkeypatch.setattr(onnx_server, "classify", fake_classify)
+    client = TestClient(app)
+    client.post(
+        "/v1/chat/completions",
+        json={"model": "hf-model", "messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert called["model"] == "hf-model"
