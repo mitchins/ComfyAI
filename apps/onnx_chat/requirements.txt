@@ -2,3 +2,4 @@ fastapi
 uvicorn
 onnxruntime
 pydantic
+huggingface_hub

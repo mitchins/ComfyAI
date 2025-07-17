@@ -19,7 +19,7 @@ def _client(monkeypatch):
     if TestClient is None:
         pytest.skip("fastapi not available")
     # ensure classify returns predictable output
-    monkeypatch.setattr(onnx_server, "classify", lambda text: "positive")
+    monkeypatch.setattr(onnx_server, "classify", lambda text, model=None: "positive")
     return TestClient(app)
 
 

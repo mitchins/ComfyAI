@@ -11,11 +11,7 @@ try:
     import onnxruntime as ort
 except Exception:  # pragma: no cover - optional dependency
     ort = None
-try:
-    from huggingface_hub import hf_hub_download
-except Exception:  # pragma: no cover - optional dependency
-    hf_hub_download = None
-import shutil
+from apps.shared.hf_utils import download_model
 
 # Requires: pip install dghs-imgutils
 try:
@@ -69,25 +65,12 @@ class ModelLoader:
         providers.append("CPUExecutionProvider")
         return providers
 
-    def _download_model(self, model_id: str, filename: str, cache_dir: str) -> str:
-        local_path = os.path.join(cache_dir, filename)
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-
-        if not os.path.exists(local_path):
-            try:
-                downloaded_path = hf_hub_download(repo_id=model_id, filename=filename)
-                shutil.copy(downloaded_path, local_path)
-                logger.info(f"Downloaded {model_id}/{filename} to {local_path}")
-            except Exception as e:
-                logger.exception(f"Failed to download model {model_id}/{filename}; aborting startup")
-                raise
-        return local_path
 
     def load_detector(self):
         if self._detector is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/detector")
-                model_path = self._download_model(DETECTOR_MODEL, DETECTOR_FILE, cache_dir)
+                model_path = download_model(DETECTOR_MODEL, DETECTOR_FILE, cache_dir)
                 providers = self._get_providers()
                 self._detector = ort.InferenceSession(model_path, providers=providers)
                 logger.info(f"Loaded detector model from {model_path}")
@@ -100,7 +83,7 @@ class ModelLoader:
         if self._embedder is None:
             try:
                 cache_dir = os.path.expanduser("~/.cache/face_api/embedder")
-                model_path = self._download_model(EMBEDDER_MODEL_PATH, EMBEDDER_FILE, cache_dir)
+                model_path = download_model(EMBEDDER_MODEL_PATH, EMBEDDER_FILE, cache_dir)
                 providers = self._get_providers()
                 self._embedder = ort.InferenceSession(model_path, providers=providers)
                 logger.info(f"Loaded embedder model from {model_path}")
