@@ -1,12 +1,15 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import JSONResponse
+from __future__ import annotations
 import asyncio
+import io
 import logging
 import os
-import io
 from typing import Optional
+
 import numpy as np
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
 from PIL import Image
+
 try:
     import onnxruntime as ort
 except Exception:  # pragma: no cover - optional dependency
@@ -15,6 +18,7 @@ try:
     from huggingface_hub import hf_hub_download
 except Exception:  # pragma: no cover - optional dependency
     hf_hub_download = None
+
 import shutil
 
 # Requires: pip install dghs-imgutils
@@ -23,53 +27,29 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     detect_faces = None
 
-# Logging configuration
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+from .config import load_config, setup_logging
 
-# Constants and defaults
-DEFAULT_THRESHOLD_MAP = {
-    "face_detect_v1.4_s/model.onnx": 0.307,
-    "face_detect_v1.4_n/model.onnx": 0.278,
-    "face_detect_v1.3_n/model.onnx": 0.305,
-    "face_detect_v1.2_s/model.onnx": 0.222,
-    "face_detect_v1.3_s/model.onnx": 0.259,
-    "face_detect_v1_s/model.onnx": 0.446,
-    "face_detect_v1_n/model.onnx": 0.458,
-    "face_detect_v0_n/model.onnx": 0.428,
-    "face_detect_v1.1_n/model.onnx": 0.373,
-    "face_detect_v1.1_s/model.onnx": 0.405,
-}
+setup_logging()
+config = load_config()
 
 DEFAULT_LEVEL = os.getenv("DETECTOR_LEVEL", "s")
 DEFAULT_VERSION = os.getenv("DETECTOR_VERSION", "v1.4")
 
-# Enforce mandatory environment variables
-def get_env_var(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        logger.critical(f"Mandatory environment variable '{name}' is not set. Aborting.")
-        raise EnvironmentError(f"Mandatory environment variable '{name}' is not set.")
-    return value
+DETECTOR_MODEL = config.detector_model
+DETECTOR_FILE = config.detector_file
+EMBEDDER_MODEL_PATH = config.embedder_model
+EMBEDDER_FILE = config.embedder_file
+DEFAULT_THRESHOLD = config.threshold
 
-DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
-DETECTOR_FILE = get_env_var("DETECTOR_FILE")
-EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
-EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
+logger = logging.getLogger(__name__)
 
-# Optional overrides
-DEFAULT_THRESHOLD = float(os.getenv("DETECTOR_THRESHOLD",
-    DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5)
-))
 
-# Model loader class for modularity
 class ModelLoader:
-    def __init__(self):
+    def __init__(self) -> None:
         self._detector: Optional[object] = None
         self._embedder: Optional[object] = None
+        self.detector_path: str | None = None
+        self.embedder_path: str | None = None
 
     def _get_providers(self):
         providers = []
@@ -84,42 +64,32 @@ class ModelLoader:
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
         if not os.path.exists(local_path):
-            try:
-                downloaded_path = hf_hub_download(repo_id=model_id, filename=filename)
-                shutil.copy(downloaded_path, local_path)
-                logger.info(f"Downloaded {model_id}/{filename} to {local_path}")
-            except Exception as e:
-                logger.exception(f"Failed to download model {model_id}/{filename}; aborting startup")
-                raise
+            downloaded_path = hf_hub_download(repo_id=model_id, filename=filename)
+            shutil.copy(downloaded_path, local_path)
+            logger.info(f"Downloaded {model_id}/{filename} to {local_path}")
         return local_path
 
     def load_detector(self):
         if self._detector is None:
-            try:
-                cache_dir = os.path.expanduser("~/.cache/face_api/detector")
-                model_path = self._download_model(DETECTOR_MODEL, DETECTOR_FILE, cache_dir)
-                providers = self._get_providers()
-                self._detector = ort.InferenceSession(model_path, providers=providers)
-                logger.info(f"Loaded detector model from {model_path}")
-            except Exception:
-                logger.critical("Detector failed to load; aborting startup")
-                raise
+            cache_dir = os.path.expanduser("~/.cache/face_api/detector")
+            model_path = self._download_model(DETECTOR_MODEL, DETECTOR_FILE, cache_dir)
+            providers = self._get_providers()
+            self._detector = ort.InferenceSession(model_path, providers=providers)
+            self.detector_path = model_path
+            logger.info(f"Loaded detector model from {model_path}")
         return self._detector
 
     def load_embedder(self):
         if self._embedder is None:
-            try:
-                cache_dir = os.path.expanduser("~/.cache/face_api/embedder")
-                model_path = self._download_model(EMBEDDER_MODEL_PATH, EMBEDDER_FILE, cache_dir)
-                providers = self._get_providers()
-                self._embedder = ort.InferenceSession(model_path, providers=providers)
-                logger.info(f"Loaded embedder model from {model_path}")
-            except Exception:
-                logger.critical("Embedder failed to load; aborting startup")
-                raise
+            cache_dir = os.path.expanduser("~/.cache/face_api/embedder")
+            model_path = self._download_model(EMBEDDER_MODEL_PATH, EMBEDDER_FILE, cache_dir)
+            providers = self._get_providers()
+            self._embedder = ort.InferenceSession(model_path, providers=providers)
+            self.embedder_path = model_path
+            logger.info(f"Loaded embedder model from {model_path}")
         return self._embedder
 
-# Preprocessing functions
+
 def preprocess_for_detection(image: np.ndarray) -> np.ndarray:
     image = image.astype(np.float32) / 255.0
     target_size = (640, 640)
@@ -128,6 +98,7 @@ def preprocess_for_detection(image: np.ndarray) -> np.ndarray:
     image = np.transpose(image, (2, 0, 1))
     image = np.expand_dims(image, axis=0)
     return image
+
 
 def preprocess_for_embedding(image: np.ndarray, target_size: tuple = (224, 224)) -> np.ndarray:
     image = np.array(Image.fromarray(image).resize(target_size))
@@ -140,6 +111,7 @@ def preprocess_for_embedding(image: np.ndarray, target_size: tuple = (224, 224))
     image = np.expand_dims(image, axis=0)
     return image
 
+
 def extract_face_region(image: np.ndarray, bbox: tuple) -> np.ndarray:
     x1, y1, x2, y2 = bbox
     h, w = image.shape[:2]
@@ -147,27 +119,31 @@ def extract_face_region(image: np.ndarray, bbox: tuple) -> np.ndarray:
     x2, y2 = min(w, int(x2)), min(h, int(y2))
     return image[y1:y2, x1:x2]
 
-# Cosine similarity
+
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-# FastAPI app and model loader instance
+
 app = FastAPI()
 model_loader = ModelLoader()
 
+app.state.detector_path = f"{DETECTOR_MODEL}/{DETECTOR_FILE}"
+app.state.embedder_path = f"{EMBEDDER_MODEL_PATH}/{EMBEDDER_FILE}"
+app.state.threshold = DEFAULT_THRESHOLD
+
 PRELOAD_MODELS = os.getenv("PRELOAD_MODELS", "false").lower() in ("1", "true", "yes")
+
 
 @app.on_event("startup")
 async def startup_event():
     if PRELOAD_MODELS:
         logger.info("Preloading models at startup...")
-        try:
-            model_loader.load_detector()
-            model_loader.load_embedder()
-            logger.info("Models preloaded successfully")
-        except Exception:
-            logger.critical("Preloading failed; aborting")
-            raise
+        model_loader.load_detector()
+        model_loader.load_embedder()
+        app.state.detector_path = model_loader.detector_path
+        app.state.embedder_path = model_loader.embedder_path
+        logger.info("Models preloaded successfully")
+
 
 def get_embedding(image_bytes: bytes) -> Optional[np.ndarray]:
     logger.debug("Starting embedding extraction")
@@ -197,10 +173,6 @@ def get_embedding(image_bytes: bytes) -> Optional[np.ndarray]:
             return None
 
         embedder = model_loader.load_embedder()
-        if embedder is None:
-            logger.error("Embedder session is None; cannot extract embedding")
-            return None
-
         processed_face = preprocess_for_embedding(face_region)
         input_name = embedder.get_inputs()[0].name
         outputs = embedder.run(None, {input_name: processed_face})
@@ -214,10 +186,11 @@ def get_embedding(image_bytes: bytes) -> Optional[np.ndarray]:
         logger.error(f"Embedding extraction failed: {e}")
         return None
 
+
 @app.post("/v1/image/compare_faces")
 async def compare_faces(
     image_a: UploadFile = File(...),
-    image_b: UploadFile = File(...)
+    image_b: UploadFile = File(...),
 ):
     logger.info("Received compare_faces request")
     try:
@@ -230,13 +203,15 @@ async def compare_faces(
             asyncio.to_thread(get_embedding, data_b),
         )
 
-        logger.info(f"Embeddings: A={'None' if emb_a is None else emb_a.shape}, B={'None' if emb_b is None else emb_b.shape}")
+        logger.info(
+            f"Embeddings: A={'None' if emb_a is None else emb_a.shape}, B={'None' if emb_b is None else emb_b.shape}"
+        )
 
         if emb_a is None or emb_b is None:
             logger.error("One or both embeddings are None; returning 422")
             return JSONResponse(
                 status_code=422,
-                content={"error": "face_not_detected", "message": "Could not detect face in one or both images"}
+                content={"error": "face_not_detected", "message": "Could not detect face in one or both images"},
             )
 
         similarity = float(cosine_similarity(emb_a, emb_b))
@@ -246,14 +221,13 @@ async def compare_faces(
 
     except Exception as e:
         logger.error(f"Error in compare_faces: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "internal_error", "message": str(e)}
-        )
+        return JSONResponse(status_code=500, content={"error": "internal_error", "message": str(e)})
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "model": DETECTOR_MODEL}
+
 
 @app.get("/models/info")
 async def models_info():
@@ -261,13 +235,28 @@ async def models_info():
         "detector_model": f"{DETECTOR_MODEL}/{DETECTOR_FILE}",
         "embedder_model": f"{EMBEDDER_MODEL_PATH}/{EMBEDDER_FILE}",
         "detector_loaded": model_loader._detector is not None,
-        "embedder_loaded": model_loader._embedder is not None
+        "embedder_loaded": model_loader._embedder is not None,
     }
 
-def main():  # pragma: no cover
+
+def main() -> None:  # pragma: no cover
+    import argparse
     import uvicorn
-    log_level_name = os.getenv("FACE_API_LOG_LEVEL", os.getenv("LOG_LEVEL", "INFO")).upper()
-    uvicorn.run(app, host="0.0.0.0", port=7860, log_level=log_level_name.lower())
+
+    parser = argparse.ArgumentParser(description="Face comparison API")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--reload", action="store_true")
+    args = parser.parse_args()
+
+    uvicorn.run(
+        "apps.face_api.main:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        log_level=os.getenv("FACE_API_LOG_LEVEL", os.getenv("LOG_LEVEL", "INFO")).lower(),
+    )
+
 
 if __name__ == "__main__":  # pragma: no cover
     main()

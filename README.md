@@ -209,6 +209,28 @@ uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
 
 Set the environment variables above to tweak model selection or provider order.
 
+Configuration values are resolved in this order: **environment variables** → **CLI flags** → **presets** defined in `apps/face_api/presets.py`.
+You can add or remove presets by editing that file only.
+
+**Zero-config preset (photo):**
+```
+uvicorn apps.face_api.main:app
+```
+
+**Switch preset:**
+```
+python -m apps.face_api.main --preset anime
+```
+
+**Custom models:**
+```
+python -m apps.face_api.main \
+  --detector-model deepghs/real_face_detection \
+  --detector-file face_detect_v1.4_s/model.onnx \
+  --embedder-model-path openailab/onnx-arcface-resnet100-ms1m \
+  --embedder-file model.onnx --threshold 0.45
+```
+
 ### Example Usage
 
 ```python
