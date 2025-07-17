@@ -25,6 +25,8 @@ except Exception:  # pragma: no cover - optional dependency
 
 from .config import load_config, setup_logging
 
+from contextlib import asynccontextmanager
+
 setup_logging()
 config = load_config()
 logger = logging.getLogger(__name__)
@@ -140,17 +142,11 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 # FastAPI app and model loader instance
-app = FastAPI()
-model_loader = ModelLoader()
-
-app.state.detector_path = f"{DETECTOR_MODEL}/{DETECTOR_FILE}"
-app.state.embedder_path = f"{EMBEDDER_MODEL_PATH}/{EMBEDDER_FILE}"
-app.state.threshold = DEFAULT_THRESHOLD
 
 PRELOAD_MODELS = config.preload_models
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     if PRELOAD_MODELS:
         logger.info("Preloading models at startup...")
         try:
@@ -160,6 +156,15 @@ async def startup_event():
         except Exception:
             logger.critical("Preloading failed; aborting")
             raise
+    yield
+
+app = FastAPI(lifespan=lifespan)
+model_loader = ModelLoader()
+
+app.state.detector_path = f"{DETECTOR_MODEL}/{DETECTOR_FILE}"
+app.state.embedder_path = f"{EMBEDDER_MODEL_PATH}/{EMBEDDER_FILE}"
+app.state.threshold = DEFAULT_THRESHOLD
+
 
 def get_embedding(image_bytes: bytes) -> Optional[np.ndarray]:
     logger.debug("Starting embedding extraction")

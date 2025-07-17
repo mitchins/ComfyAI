@@ -45,7 +45,7 @@ def test_chat_endpoint_invalid_json(monkeypatch):
     client = _client(monkeypatch)
     resp = client.post(
         "/v1/chat/completions",
-        data="notjson",
+        content="notjson",
         headers={"Content-Type": "application/json"},
     )
     assert resp.status_code == 400
