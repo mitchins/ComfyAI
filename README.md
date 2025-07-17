@@ -206,24 +206,6 @@ uvicorn apps.face_api.main:app \
 
 Edit `apps/face_api/presets.py` to add or remove presets.
 
-### Example Usage
-
-```python
-from comfyai import openai_client
-
-# Remote:
-client = openai_client(api_key="…")
-
-# Local ONNX:
-client = openai_client(endpoint="http://localhost:8000/v1/chat/completions")
-
-response = client.create(
-model="qwen2.5",
-messages=[{"role":"user","content":"Hello"}]
-)
-print(response)
-```
-
 ### Testing
 
 ```bash
