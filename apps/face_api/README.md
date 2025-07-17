@@ -48,17 +48,17 @@ The **photo** preset is recommended for most workflows and is used in the docume
 Zero‑config preset:
 
 ```bash
-uvicorn apps.face_api.main:app --preset photo
+PRESET=photo uvicorn apps.face_api.main:app
 ```
 
 Custom models:
 
 ```bash
-uvicorn apps.face_api.main:app \
-  --detector-model deepghs/real_face_detection \
-  --detector-file face_detect_v1.4_s/model.onnx \
-  --embedder-model-path openailab/onnx-arcface-resnet100-ms1m \
-  --embedder-file model.onnx
+DETECTOR_MODEL=deepghs/real_face_detection \
+DETECTOR_FILE=face_detect_v1.4_s/model.onnx \
+EMBEDDER_MODEL_PATH=openailab/onnx-arcface-resnet100-ms1m \
+EMBEDDER_FILE=model.onnx \
+uvicorn apps.face_api.main:app
 ```
 
 Add or remove presets by editing `apps/face_api/presets.py`.
