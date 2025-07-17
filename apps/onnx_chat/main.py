@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from .config import load_config, setup_logging
+from apps.shared.hf_utils import download_model
 
 try:
     import onnxruntime as ort
@@ -17,6 +18,10 @@ except Exception:  # pragma: no cover - optional dependency
 
 setup_logging()
 config = load_config()
+
+sessions: dict[str, object | None] = {}
+MODEL_PATH = config.model_path
+DEFAULT_FILE = os.getenv("ONNX_FILE_NAME", "model.onnx")
 
 app = FastAPI()
 
@@ -31,18 +36,38 @@ async def health_check():
     model_name = os.path.basename(MODEL_PATH) if MODEL_PATH else "none"
     return {"status": "ok", "model": model_name}
 
-session = None
-MODEL_PATH = config.model_path
+
+def _ensure_model_path(name: str) -> str | None:
+    if os.path.exists(name):
+        return name
+    repo_id, filename = (name.split(":", 1) + [DEFAULT_FILE])[:2]
+    cache_dir = os.path.expanduser("~/.cache/onnx_chat")
+    try:
+        return download_model(repo_id, filename, cache_dir)
+    except Exception:
+        logging.getLogger(__name__).exception("Failed to download %s", name)
+        return None
 
 
-def load_session():
-    global session
-    if session is None and ort and MODEL_PATH and os.path.exists(MODEL_PATH):
-        session = ort.InferenceSession(MODEL_PATH)
+def load_session(model_name: str) -> object | None:
+    if model_name not in sessions:
+        if ort is None:
+            sessions[model_name] = None
+        else:
+            path = _ensure_model_path(model_name) or MODEL_PATH
+            if path and os.path.exists(path):
+                try:
+                    sessions[model_name] = ort.InferenceSession(path)
+                except Exception:
+                    logging.getLogger(__name__).exception("Failed to load model %s", path)
+                    sessions[model_name] = None
+            else:
+                sessions[model_name] = None
+    return sessions[model_name]
 
 
-def classify(text: str) -> str:
-    load_session()
+def classify(text: str, model_name: str) -> str:
+    session = load_session(model_name)
     if session is None:
         # Fallback simple rule when ONNX model is unavailable
         return "positive" if "good" in text.lower() else "negative"
@@ -72,7 +97,7 @@ async def chat(request: Request):
                     text += part.get("text", "")
         else:
             text = str(content)
-    result = classify(text)
+    result = classify(text, req.model or (MODEL_PATH or ""))
     return {
         "id": "cmpl-001",
         "object": "chat.completion",
