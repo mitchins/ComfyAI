@@ -194,6 +194,10 @@ pip install comfyai[onnx]
 - `EMBEDDER_MODEL_PATH` – repository for the embedding model
 - `EMBEDDER_FILE` – path to the embedder ONNX file
 - `DETECTOR_THRESHOLD` – optional threshold override (default per model)
+- `PRESET` – named configuration defined in `apps/face_api/presets.py`
+
+Configuration precedence is **environment variables → CLI flags → presets**.
+Add or remove presets by editing `apps/face_api/presets.py` only.
 
 ### Face Comparison API Installation
 
@@ -208,6 +212,29 @@ uvicorn apps.face_api.main:app --host 0.0.0.0 --port 7860
 ```
 
 Set the environment variables above to tweak model selection or provider order.
+
+Zero configuration (uses the `photo` preset):
+
+```bash
+python -m apps.face_api.main
+```
+
+Select another preset:
+
+```bash
+PRESET=anime python -m apps.face_api.main
+```
+
+Override models via CLI:
+
+```bash
+python -m apps.face_api.main \
+  --detector_model deepghs/anime_face_detection \
+  --detector_file face_detect_v1.4_s/model.onnx \
+  --embedder_repo Xenova/clip-vit-base-patch32 \
+  --embedder_file onnx/vision_model.onnx \
+  --threshold 0.3
+```
 
 ### Example Usage
 

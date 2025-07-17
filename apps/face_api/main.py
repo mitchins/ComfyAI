@@ -16,6 +16,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     hf_hub_download = None
 import shutil
+from .config import load_config, Preset
 
 # Requires: pip install dghs-imgutils
 try:
@@ -30,40 +31,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Constants and defaults
-DEFAULT_THRESHOLD_MAP = {
-    "face_detect_v1.4_s/model.onnx": 0.307,
-    "face_detect_v1.4_n/model.onnx": 0.278,
-    "face_detect_v1.3_n/model.onnx": 0.305,
-    "face_detect_v1.2_s/model.onnx": 0.222,
-    "face_detect_v1.3_s/model.onnx": 0.259,
-    "face_detect_v1_s/model.onnx": 0.446,
-    "face_detect_v1_n/model.onnx": 0.458,
-    "face_detect_v0_n/model.onnx": 0.428,
-    "face_detect_v1.1_n/model.onnx": 0.373,
-    "face_detect_v1.1_s/model.onnx": 0.405,
-}
-
-DEFAULT_LEVEL = os.getenv("DETECTOR_LEVEL", "s")
-DEFAULT_VERSION = os.getenv("DETECTOR_VERSION", "v1.4")
-
-# Enforce mandatory environment variables
-def get_env_var(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        logger.critical(f"Mandatory environment variable '{name}' is not set. Aborting.")
-        raise EnvironmentError(f"Mandatory environment variable '{name}' is not set.")
-    return value
-
-DETECTOR_MODEL = get_env_var("DETECTOR_MODEL")
-DETECTOR_FILE = get_env_var("DETECTOR_FILE")
-EMBEDDER_MODEL_PATH = get_env_var("EMBEDDER_MODEL_PATH")
-EMBEDDER_FILE = get_env_var("EMBEDDER_FILE")
-
-# Optional overrides
-DEFAULT_THRESHOLD = float(os.getenv("DETECTOR_THRESHOLD",
-    DEFAULT_THRESHOLD_MAP.get(DETECTOR_FILE, 0.5)
-))
+# Configuration
+cfg = load_config()
+DETECTOR_MODEL = cfg["DETECTOR_MODEL"]
+DETECTOR_FILE = cfg["DETECTOR_FILE"]
+EMBEDDER_MODEL_PATH = cfg["EMBEDDER_MODEL_PATH"]
+EMBEDDER_FILE = cfg["EMBEDDER_FILE"]
+DEFAULT_THRESHOLD = cfg["DEFAULT_THRESHOLD"]
 
 # Model loader class for modularity
 class ModelLoader:
@@ -153,6 +127,9 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 # FastAPI app and model loader instance
 app = FastAPI()
+app.state.detector_path = f"{DETECTOR_MODEL}/{DETECTOR_FILE}"
+app.state.embedder_path = f"{EMBEDDER_MODEL_PATH}/{EMBEDDER_FILE}"
+app.state.threshold = DEFAULT_THRESHOLD
 model_loader = ModelLoader()
 
 PRELOAD_MODELS = os.getenv("PRELOAD_MODELS", "false").lower() in ("1", "true", "yes")
@@ -178,8 +155,6 @@ def get_embedding(image_bytes: bytes) -> Optional[np.ndarray]:
 
         raw_faces = detect_faces(
             img,
-            level=DEFAULT_LEVEL,
-            version=DEFAULT_VERSION,
             conf_threshold=DEFAULT_THRESHOLD
         )
         faces = [bbox for (bbox, _, _) in raw_faces]
