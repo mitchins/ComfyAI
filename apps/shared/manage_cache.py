@@ -35,7 +35,7 @@ def list_cached_entries() -> List[Dict[str, float]]:
     except CacheNotFound:
         return []
     entries = []
-    for repo in cache.repos:
+    for repo in cache.repos.values():
         for rev in repo.revisions:
             for file in rev.files:
                 entry = {

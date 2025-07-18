@@ -8,6 +8,8 @@ if os.getenv("UNIT_TEST_MODE") != "1":
     )
     from .conditional_save_image import ConditionalSaveImage
     from .compare_faces import CompareFacesNode
+    from .load_image_folder import LoadImageFolder
+    from .image_similarity_checker import ImageSimilarityChecker
 
     NODE_CLASS_MAPPINGS = {
         "VLLMTextQuery": VLLMTextQuery,
@@ -15,6 +17,8 @@ if os.getenv("UNIT_TEST_MODE") != "1":
         "VLLMDualImageQuery": VLLMDualImageQuery,
         "ConditionalSaveImage": ConditionalSaveImage,
         "CompareFacesNode": CompareFacesNode,
+        "LoadImageFolder": LoadImageFolder,
+        "ImageSimilarityChecker": ImageSimilarityChecker,
     }
 
     NODE_DISPLAY_NAME_MAPPINGS = {
@@ -23,6 +27,8 @@ if os.getenv("UNIT_TEST_MODE") != "1":
         "VLLMDualImageQuery": "Vision LLM Query (2 Images)",
         "ConditionalSaveImage": "Conditional Save Image",
         "CompareFacesNode": "Face Comparison",
+        "LoadImageFolder": "Load Image Folder",
+        "ImageSimilarityChecker": "Image Similarity Checker",
     }
 else:
     NODE_CLASS_MAPPINGS = {}

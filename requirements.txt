@@ -1,3 +1,5 @@
 requests>=2.28
 pillow>=9.0
 numpy>=1.23
+transformers>=4.21.0
+torch>=1.13.0

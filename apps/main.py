@@ -9,6 +9,10 @@ from common.logging import setup_logging
 setup_logging()
 app = FastAPI(title="ComfyAI Master API")
 
+@app.get("/")
+async def read_root():
+    return {"message": "ComfyAI API"}
+
 STATIC_DIR = Path(__file__).resolve().parent / "static" / "manage"
 
 app.include_router(chat_router, prefix="/chat", tags=["chat"])

@@ -59,10 +59,14 @@ class ModelLoader:
 
     def _get_providers(self):
         providers = []
-        available_providers = ort.get_available_providers()
-        if "CUDAExecutionProvider" in available_providers:
-            providers.append("CUDAExecutionProvider")
-        providers.append("CPUExecutionProvider")
+        if ort is not None:
+            available_providers = ort.get_available_providers()
+            if "CUDAExecutionProvider" in available_providers:
+                providers.append("CUDAExecutionProvider")
+            providers.append("CPUExecutionProvider")
+        else:
+            # If ort is not available, default to CPUExecutionProvider
+            providers.append("CPUExecutionProvider")
         return providers
 
 
