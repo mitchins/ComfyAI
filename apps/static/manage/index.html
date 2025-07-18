@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cache Manager</title>
+  <!-- Materialize CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+  <nav>
+    <div class="nav-wrapper">
+      <a href="#" class="brand-logo center">ComfyAI Cache Manager</a>
+    </div>
+  </nav>
+  <div class="container">
+    <h5>Remote Repo Files</h5>
+    <div class="row" style="margin-top: 1rem;">
+      <div class="input-field col s8">
+        <input id="hf-repo-input" type="text" />
+        <label for="hf-repo-input">Hugging Face Repo (e.g. user/model)</label>
+      </div>
+      <div class="col s4" style="padding-top: 1.5rem;">
+        <a id="load-hf-repo" class="waves-effect waves-light btn">Load Files</a>
+      </div>
+    </div>
+    <table class="striped">
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>Size</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="repo-files">
+      </tbody>
+    </table>
+
+    <h5>Cached Entries</h5>
+    <div id="cache-container"></div>
+  </div>
+
+  <!-- Materialize JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+  <!-- Info Modal -->
+  <div id="info-modal" class="modal">
+    <div class="modal-content">
+      <h4>Model Info</h4>
+      <pre id="info-text" style="white-space: pre-wrap;"></pre>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect waves-green btn-flat">Close</a>
+    </div>
+  </div>
+
+  <script src="manage.js"></script>
+</body>
+</html>

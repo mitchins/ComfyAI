@@ -1,11 +1,11 @@
 import os
 import re
-from typing import List
+from typing import List, Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from nodes.manage_cache import (
+from apps.shared.manage_cache import (
     list_repo_files,
     list_cached_entries,
     download_file,
@@ -13,6 +13,19 @@ from nodes.manage_cache import (
 )
 
 router = APIRouter(prefix="", tags=["manage"])
+
+
+def _normalize_repo_id(raw: str) -> str:
+    # If full HF URL, strip protocol and domain
+    if "huggingface.co" in raw:
+        # Extract part after domain
+        parts = raw.split("huggingface.co/", 1)[1]
+    else:
+        parts = raw
+    # Remove any '/tree/' or '/blob/' segments and following path
+    parts = re.sub(r"/(?:tree|blob)/.*$", "", parts)
+    # Strip leading/trailing slashes
+    return parts.strip("/")
 
 
 class DownloadRequest(BaseModel):
@@ -38,6 +51,9 @@ class CacheEntry(BaseModel):
     path: str
     size: int
     last_used: float
+    framework: Optional[str] = None
+    kind: Optional[str] = None
+    inputs: List[Any] = []
 
     class Config:
         json_schema_extra = {
@@ -45,7 +61,9 @@ class CacheEntry(BaseModel):
                 "repo": "myrepo",
                 "path": "weights/model.bin",
                 "size": 1234,
-                "last_used": 0.0,
+                "framework": "pytorch",
+                "kind": "model",
+                "inputs": []
             }
         }
 
@@ -63,10 +81,14 @@ def _validate_paths(repo_id: str, file_path: str | None = None) -> None:
             raise HTTPException(status_code=400, detail="Path traversal detected")
 
 
-@router.get("/repos/{repo_id}/files", response_model=List[FileEntry], tags=["manage"])
+@router.get("/repos/{repo_id:path}/files", response_model=List[FileEntry], tags=["manage"])
 async def get_remote_files(repo_id: str):
+    norm_repo = _normalize_repo_id(repo_id)
+    _validate_paths(norm_repo)
     try:
-        files = list_repo_files(repo_id)
+        files = list_repo_files(norm_repo)
+        # Ensure list_repo_files returns dicts or objects; filter by dict key if needed
+        files = [f for f in files if (f.get("path") or getattr(f, "path", "")).lower().endswith(".onnx")]
         return files
     except Exception as e:  # pragma: no cover - pass through
         raise HTTPException(status_code=500, detail=str(e))
@@ -80,17 +102,19 @@ async def get_cache():
 
 @router.post("/cache/download", status_code=202, response_model=None, tags=["manage"])
 async def post_download(req: DownloadRequest):
-    _validate_paths(req.repo, req.path)
+    repo = _normalize_repo_id(req.repo)
+    _validate_paths(repo, req.path)
     try:
-        download_file(repo_id=req.repo, file_path=req.path)
+        download_file(repo_id=repo, file_path=req.path)
     except Exception as e:  # pragma: no cover - pass through
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/cache", status_code=200, response_model=None, tags=["manage"])
 async def delete_cache(req: DeleteRequest):
-    _validate_paths(req.repo, req.path)
+    repo = _normalize_repo_id(req.repo)
+    _validate_paths(repo, req.path)
     try:
-        delete_cached_file(repo_id=req.repo, file_path=req.path)
+        delete_cached_file(repo_id=repo, file_path=req.path)
     except Exception as e:  # pragma: no cover - pass through
         raise HTTPException(status_code=500, detail=str(e))

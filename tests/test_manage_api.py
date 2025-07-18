@@ -7,26 +7,27 @@ os.environ.setdefault("DETECTOR_FILE", "model.onnx")
 os.environ.setdefault("EMBEDDER_MODEL_PATH", "fake")
 os.environ.setdefault("EMBEDDER_FILE", "model.onnx")
 
-sys.modules.pop("fastapi", None)
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient
+from fastapi import FastAPI
+from apps.manage_api.router import router as manage_router
 
-from comfyai.main import app
-
+app = FastAPI()
+app.include_router(manage_router, prefix="/manage")
 client = TestClient(app)
 
 
 def test_get_remote_files(monkeypatch):
-    monkeypatch.setattr("apps.manage_api.router.list_repo_files", lambda repo: [{"path": "f.txt", "size": 123}])
+    monkeypatch.setattr("apps.manage_api.router.list_repo_files", lambda repo: [{"path": "f.onnx", "size": 123}])
     resp = client.get("/manage/repos/test/files")
     assert resp.status_code == 200
-    assert resp.json() == [{"path": "f.txt", "size": 123}]
+    assert resp.json() == [{"path": "f.onnx", "size": 123}]
 
 
 def test_get_cache(monkeypatch):
-    monkeypatch.setattr("apps.manage_api.router.list_cached_entries", lambda: [{"repo": "r", "path": "f.txt", "size": 1, "last_used": 0.0}])
+    monkeypatch.setattr("apps.manage_api.router.list_cached_entries", lambda: [{"repo": "r", "path": "f.txt", "size": 1, "last_used": 0.0, "framework": None, "kind": None, "inputs": []}])
     resp = client.get("/manage/cache")
     assert resp.status_code == 200
-    assert resp.json() == [{"repo": "r", "path": "f.txt", "size": 1, "last_used": 0.0}]
+    assert resp.json() == [{"repo": "r", "path": "f.txt", "size": 1, "last_used": 0.0, "framework": None, "kind": None, "inputs": []}]
 
 
 def test_download(monkeypatch):

@@ -172,3 +172,4 @@ ComfyUI_repo/
 .pypirc
 logs/
 **/.DS_Store
+**/*.onnx
