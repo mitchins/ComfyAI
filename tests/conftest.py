@@ -14,7 +14,7 @@ if repo_root not in sys.path:
 
 # Stub heavy modules so imports never fail
 import importlib.machinery
-for mod in ("torch", "onnxruntime", "fastapi", "uvicorn"):
+for mod in ("torch", "onnxruntime", "uvicorn", "onnx"):
     if mod not in sys.modules:
         module = types.ModuleType(mod)
         module.__spec__ = importlib.machinery.ModuleSpec(mod, loader=None)
