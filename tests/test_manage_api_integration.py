@@ -3,6 +3,17 @@ import sys
 import pytest
 from starlette.testclient import TestClient
 from fastapi import FastAPI
+import socket
+
+
+def _has_network() -> bool:
+    try:
+        socket.create_connection(("huggingface.co", 443), timeout=3)
+        return True
+    except OSError:
+        return False
+
+pytestmark = pytest.mark.skipif(not _has_network(), reason="network unavailable")
 from apps.manage_api.router import router as manage_router
 
 # Ensure required env vars so face_api can import
