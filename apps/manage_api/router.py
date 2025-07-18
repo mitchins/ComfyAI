@@ -4,6 +4,7 @@ from typing import List, Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 
 from apps.shared.manage_cache import (
     list_repo_files,
@@ -42,8 +43,7 @@ class FileEntry(BaseModel):
     path: str
     size: int
 
-    class Config:
-        json_schema_extra = {"example": {"path": "weights/model.bin", "size": 1234}}
+    model_config = ConfigDict(json_schema_extra={"example": {"path": "weights/model.bin", "size": 1234}})
 
 
 class CacheEntry(BaseModel):
@@ -55,8 +55,7 @@ class CacheEntry(BaseModel):
     kind: Optional[str] = None
     inputs: List[Any] = []
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "repo": "myrepo",
                 "path": "weights/model.bin",
@@ -65,7 +64,7 @@ class CacheEntry(BaseModel):
                 "kind": "model",
                 "inputs": []
             }
-        }
+        })
 
 
 def _validate_paths(repo_id: str, file_path: str | None = None) -> None:
