@@ -67,7 +67,7 @@ def _cli_args(argv: list[str] | None) -> argparse.Namespace:
 def load_config(argv: list[str] | None = None) -> Config:
     args = _cli_args(argv if argv is not None else sys.argv[1:])
 
-    preset_name = os.getenv("PRESET") or args.preset
+    preset_name = os.getenv("PRESET") or args.preset or "photo"  # Default to photo preset
     preset = {}
     if preset_name:
         try:
@@ -75,13 +75,13 @@ def load_config(argv: list[str] | None = None) -> Config:
         except KeyError as e:
             raise SystemExit(str(e))
 
-    def pick(env_name: str, arg_val: str | None, key: str) -> str:
-        return os.getenv(env_name) or arg_val or preset.get(key, "")
+    def pick(env_name: str, arg_val: str | None, key: str, default: str = "") -> str:
+        return os.getenv(env_name) or arg_val or preset.get(key, default)
 
-    detector_model = pick("DETECTOR_MODEL", args.detector_model, "detector_repo")
-    detector_file = pick("DETECTOR_FILE", args.detector_file, "detector_file")
-    embedder_model_path = pick("EMBEDDER_MODEL_PATH", args.embedder_model_path, "embedder_repo")
-    embedder_file = pick("EMBEDDER_FILE", args.embedder_file, "embedder_file")
+    detector_model = pick("DETECTOR_MODEL", args.detector_model, "detector_repo", "deepghs/real_face_detection")
+    detector_file = pick("DETECTOR_FILE", args.detector_file, "detector_file", "face_detect_v1.4_s/model.onnx")
+    embedder_model_path = pick("EMBEDDER_MODEL_PATH", args.embedder_model_path, "embedder_repo", "openailab/onnx-arcface-resnet100-ms1m")
+    embedder_file = pick("EMBEDDER_FILE", args.embedder_file, "embedder_file", "model.onnx")
 
     thr_env = os.getenv("DETECTOR_THRESHOLD")
     if thr_env is not None:
@@ -92,19 +92,6 @@ def load_config(argv: list[str] | None = None) -> Config:
         threshold = float(preset.get("threshold", 0.5))
 
     preload = os.getenv("PRELOAD_MODELS", "false").lower() in ("1", "true", "yes")
-
-    missing = [
-        name
-        for name, val in [
-            ("DETECTOR_MODEL", detector_model),
-            ("DETECTOR_FILE", detector_file),
-            ("EMBEDDER_MODEL_PATH", embedder_model_path),
-            ("EMBEDDER_FILE", embedder_file),
-        ]
-        if not val
-    ]
-    if missing:
-        raise SystemExit(f"Missing required settings: {', '.join(missing)}")
 
     log_level = os.getenv("FACE_API_LOG_LEVEL", os.getenv("LOG_LEVEL", "INFO")).lower()
 

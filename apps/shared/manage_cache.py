@@ -1,6 +1,7 @@
 import os
 from typing import List, Dict
 import onnx
+from .model_types import ModelType
 
 try:
     from huggingface_hub import HfApi, hf_hub_download
@@ -12,6 +13,23 @@ except Exception:  # pragma: no cover - optional dependency
     scan_cache_dir = None  # type: ignore
     _try_delete_path = None  # type: ignore
     CacheNotFound = Exception  # type: ignore
+
+
+def _classify_model_type(input_names: List[str]) -> ModelType:
+    """Classify model type based on input names."""
+    has_text_inputs = any(name in input_names for name in ["input_ids", "attention_mask", "token_type_ids"])
+    has_vision_inputs = any(name in input_names for name in ["pixel_values", "image", "images"])
+    
+    if has_text_inputs and has_vision_inputs:
+        return ModelType.VISION_LLM
+    elif has_vision_inputs:
+        return ModelType.VISION_EMBEDDER
+    elif has_text_inputs:
+        return ModelType.TEXT_LLM
+    elif any("pixel" in name.lower() for name in input_names):
+        return ModelType.VISION_EMBEDDER
+    else:
+        return ModelType.UNKNOWN
 
 
 def _require() -> None:
@@ -44,7 +62,7 @@ def list_cached_entries() -> List[Dict[str, float]]:
                     "size": file.size_on_disk,
                     "last_used": file.blob_last_accessed,
                     "framework": None,
-                    "kind": None,
+                    "kind": ModelType.UNKNOWN.value,
                     "inputs": [],
                 }
                 if file.file_name.endswith(".onnx"):
@@ -58,14 +76,9 @@ def list_cached_entries() -> List[Dict[str, float]]:
                                     framework = prop.value
                                     break
                         entry["framework"] = framework
-                        # Determine kind
+                        # Determine kind using the classification function
                         input_names = [inp.name for inp in model.graph.input]
-                        if any("pixel" in name for name in input_names):
-                            entry["kind"] = "vision-embedder"
-                        elif any("input_ids" in name for name in input_names):
-                            entry["kind"] = "text-llm"
-                        else:
-                            entry["kind"] = "unknown"
+                        entry["kind"] = _classify_model_type(input_names).value
                         # Collect inputs
                         inputs = []
                         for inp in model.graph.input:
@@ -79,7 +92,7 @@ def list_cached_entries() -> List[Dict[str, float]]:
                         entry["inputs"] = inputs
                     except Exception:
                         entry["framework"] = None
-                        entry["kind"] = None
+                        entry["kind"] = ModelType.UNKNOWN.value
                         entry["inputs"] = []
                 entries.append(entry)
     return entries
@@ -89,6 +102,24 @@ def download_file(repo_id: str, file_path: str) -> None:
     """Ensure a file from HF repo is present in the local cache."""
     _require()
     hf_hub_download(repo_id=repo_id, filename=file_path)
+
+
+# Helper to download only ONNX file and minimal config for a model
+def download_model_components(repo_id: str, onnx_path: str) -> None:
+    """
+    Download only the necessary components for an ONNX model:
+    - config.json from the repo root
+    - the specified ONNX file (relative path)
+    """
+    _require()
+    # Download config.json
+    try:
+        hf_hub_download(repo_id=repo_id, filename="config.json")
+    except Exception:
+        # config.json may not exist at root, ignore if not found
+        pass
+    # Download the ONNX file
+    hf_hub_download(repo_id=repo_id, filename=onnx_path)
 
 
 def delete_cached_file(repo_id: str, file_path: str) -> None:
