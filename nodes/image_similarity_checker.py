@@ -114,6 +114,19 @@ class ImageSimilarityChecker:
         
         return F.cosine_similarity(embedding1.unsqueeze(0), embedding2.unsqueeze(0)).item()
 
+    def compute_reference_consistency(self, reference_embeddings):
+        """Compute the mean similarity between all reference images."""
+        if len(reference_embeddings) < 2:
+            return 1.0  # Single image is perfectly consistent with itself
+        
+        similarities = []
+        for i in range(len(reference_embeddings)):
+            for j in range(i + 1, len(reference_embeddings)):
+                similarity = self.compute_cosine_similarity(reference_embeddings[i], reference_embeddings[j])
+                similarities.append(similarity)
+        
+        return sum(similarities) / len(similarities) if similarities else 1.0
+
     def check_similarity(self, reference_images, test_image, threshold=0.75, clip_model="openai/clip-vit-base-patch32"):
         """
         Check if test_image is similar to any of the reference_images.
@@ -125,7 +138,7 @@ class ImageSimilarityChecker:
             clip_model: CLIP model name to use
             
         Returns:
-            tuple: (is_similar, max_similarity, debug_info)
+            tuple: (is_similar, max_similarity, debug_info, reference_consistency)
         """
         try:
             self._load_model()
@@ -145,6 +158,9 @@ class ImageSimilarityChecker:
                 ref_embedding = self.get_image_embedding(reference_images[i])
                 reference_embeddings.append(ref_embedding)
             
+            # Compute reference consistency
+            reference_consistency = self.compute_reference_consistency(reference_embeddings)
+            
             # Compute similarities
             similarities = []
             for ref_embedding in reference_embeddings:
@@ -155,13 +171,14 @@ class ImageSimilarityChecker:
             is_similar = max_similarity >= threshold
             
             debug_info = f"Max similarity: {max_similarity:.3f}, Threshold: {threshold:.3f}, Similar: {is_similar}"
+            debug_info += f", Ref consistency: {reference_consistency:.3f}"
             debug_info += f", Similarities: {[f'{s:.3f}' for s in similarities]}"
             
             logging.info(debug_info)
             
-            return (is_similar, max_similarity, debug_info)
+            return (is_similar, max_similarity, debug_info, reference_consistency)
             
         except Exception as e:
             error_msg = f"Error in similarity check: {str(e)}"
             logging.error(error_msg)
-            return (False, 0.0, error_msg)
+            return (False, 0.0, error_msg, 0.0)

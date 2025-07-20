@@ -136,8 +136,8 @@ class TestImageSimilarityChecker:
 
     def test_return_types(self):
         """Test RETURN_TYPES and related constants."""
-        assert ImageSimilarityChecker.RETURN_TYPES == ("BOOLEAN", "FLOAT", "STRING")
-        assert ImageSimilarityChecker.RETURN_NAMES == ("is_similar", "max_similarity", "debug_info")
+        assert ImageSimilarityChecker.RETURN_TYPES == ("BOOLEAN", "FLOAT", "STRING", "FLOAT")
+        assert ImageSimilarityChecker.RETURN_NAMES == ("is_similar", "max_similarity", "debug_info", "reference_consistency")
         assert ImageSimilarityChecker.FUNCTION == "check_similarity"
         assert ImageSimilarityChecker.CATEGORY == "image/analysis"
 
@@ -208,16 +208,18 @@ class TestImageSimilarityChecker:
         # Test with default threshold
         result = checker.check_similarity(reference_images, test_image)
         
-        assert len(result) == 3
-        is_similar, max_similarity, debug_info = result
+        assert len(result) == 4
+        is_similar, max_similarity, debug_info, reference_consistency = result
         
         assert isinstance(is_similar, bool)
         assert isinstance(max_similarity, float)
         assert isinstance(debug_info, str)
+        assert isinstance(reference_consistency, float)
         
         # In unit test mode, mock similarity is 0.8, default threshold is 0.75
         assert is_similar == True  # 0.8 > 0.75
         assert max_similarity == 0.8
+        assert 0.0 <= reference_consistency <= 1.0
 
     def test_check_similarity_with_threshold(self):
         """Test similarity checking with different thresholds."""
@@ -228,12 +230,13 @@ class TestImageSimilarityChecker:
         
         # Test with high threshold (should not be similar)
         result = checker.check_similarity(reference_images, test_image, threshold=0.9)
-        is_similar, max_similarity, debug_info = result
+        is_similar, max_similarity, debug_info, reference_consistency = result
         
         # Mock similarity is 0.8, threshold is 0.9
         assert is_similar == False
         assert max_similarity == 0.8
         assert "0.9" in debug_info
+        assert isinstance(reference_consistency, float)
 
     def test_check_similarity_4d_test_image(self):
         """Test with 4D test image (batch size 1)."""
@@ -244,9 +247,10 @@ class TestImageSimilarityChecker:
         
         result = checker.check_similarity(reference_images, test_image)
         
-        assert len(result) == 3
-        is_similar, max_similarity, debug_info = result
+        assert len(result) == 4
+        is_similar, max_similarity, debug_info, reference_consistency = result
         assert isinstance(is_similar, bool)
+        assert isinstance(reference_consistency, float)
 
     def test_check_similarity_invalid_batch_size(self):
         """Test error handling for invalid test image batch size."""
@@ -257,10 +261,11 @@ class TestImageSimilarityChecker:
         
         result = checker.check_similarity(reference_images, test_image)
         
-        is_similar, max_similarity, debug_info = result
+        is_similar, max_similarity, debug_info, reference_consistency = result
         assert is_similar == False
         assert max_similarity == 0.0
         assert "Error" in debug_info
+        assert reference_consistency == 0.0
 
     def test_debug_info_content(self):
         """Test that debug_info contains expected information."""
@@ -270,12 +275,13 @@ class TestImageSimilarityChecker:
         test_image = self.create_test_tensor()
         
         result = checker.check_similarity(reference_images, test_image, threshold=0.75)
-        is_similar, max_similarity, debug_info = result
+        is_similar, max_similarity, debug_info, reference_consistency = result
         
         # Debug info should contain similarity values, threshold, and result
         assert "Max similarity: 0.800" in debug_info
         assert "Threshold: 0.750" in debug_info
         assert "Similar: True" in debug_info
+        assert "Ref consistency:" in debug_info
         assert "Similarities:" in debug_info
 
     def test_edge_cases(self):
@@ -289,8 +295,26 @@ class TestImageSimilarityChecker:
         result = checker.check_similarity(reference_images, test_image)
         
         # Should still work with single reference image
-        assert len(result) == 3
-        is_similar, max_similarity, debug_info = result
+        assert len(result) == 4
+        is_similar, max_similarity, debug_info, reference_consistency = result
         assert isinstance(is_similar, bool)
         assert isinstance(max_similarity, float)
         assert isinstance(debug_info, str)
+        assert isinstance(reference_consistency, float)
+        # Single image should have perfect consistency
+        assert reference_consistency == 1.0
+
+    def test_compute_reference_consistency(self):
+        """Test the reference consistency calculation directly."""
+        checker = ImageSimilarityChecker()
+        
+        # Test with single embedding
+        single_embedding = [MockTensor(np.random.rand(512))]
+        consistency = checker.compute_reference_consistency(single_embedding)
+        assert consistency == 1.0
+        
+        # Test with multiple embeddings
+        multiple_embeddings = [MockTensor(np.random.rand(512)) for _ in range(3)]
+        consistency = checker.compute_reference_consistency(multiple_embeddings)
+        assert 0.0 <= consistency <= 1.0
+        assert isinstance(consistency, float)

@@ -216,3 +216,48 @@ of raising an exception. Temporary files are always cleaned up in the
    UI can display your node correctly.
 
 That's it – restart ComfyUI and your node should appear in the menu.
+
+## New Nodes Added
+
+### LoadImageFolder
+- **Purpose**: Load all images from a folder as a batch instead of individual workflow iterations
+- **Key Features**: 
+  - Batch processing of multiple images
+  - Configurable file extensions
+  - Automatic image resizing for consistent batching
+  - Max images limit option
+
+### ImageSimilarityChecker
+- **Purpose**: Use CLIP embeddings to check image similarity against reference images
+- **Key Features**:
+  - CLIP-based embeddings for semantic similarity
+  - Configurable similarity threshold
+  - Reference consistency metrics (0.0-1.0)
+  - Detailed debug information
+
+## Reference Consistency Metrics
+
+The `reference_consistency` output (0.0-1.0) indicates how similar your reference images are to each other:
+
+- **0.8-1.0**: Very consistent style (good for game backgrounds, artistic styles)
+- **0.6-0.8**: Moderately consistent (some variation in style/composition)
+- **0.4-0.6**: Mixed styles (may need more focused reference set)
+- **0.0-0.4**: Very diverse references (may not be suitable for style matching)
+
+For game backgrounds or artistic style matching, you typically want consistency scores above 0.7.
+
+## Testing
+
+All nodes include comprehensive unit tests with proper mocking for the test environment. Run tests with:
+
+```bash
+python -m pytest tests/test_load_image_folder.py tests/test_image_similarity_checker.py -v
+```
+
+## Dependencies
+
+The new nodes require:
+- `transformers>=4.21.0` (for CLIP model)
+- `torch>=1.13.0` (for tensor operations)
+- `pillow>=9.0` (for image processing)
+- `numpy>=1.23` (for array operations)
