@@ -81,7 +81,7 @@ ONNX_MODEL_CONFIGS = {
         }
     ),
     
-    # 🚧 TODO: Gemma 3n 2B - requires complex .onnx_data file handling
+    # 🚧 TODO: Gemma 3n 2B - debugging in progress
     # 'gemma-3n-2b': ONNXModelConfig(
     #     num_layers=26,  
     #     num_heads=8,    
@@ -117,12 +117,12 @@ REFERENCE_MODELS = {
         "config": "granite-3.0-2b",
         "recommended_quant": "_q4", 
         "description": "2B text-only model, single file architecture"
-    }
+    },
     
-    # 🚧 TODO: Gemma 3n support - complex .onnx_data companion file handling needed
+    # 🚧 TODO: Gemma 3n models - debugging in progress
     # "onnx-community/gemma-3n-E2B-it-ONNX": {
     #     "config": "gemma-3n-2b",
-    #     "recommended_quant": "_int8",
+    #     "recommended_quant": "_q4",
     #     "description": "2B vision+audio+text model, multi-component architecture" 
     # }
 }

@@ -41,7 +41,7 @@ except ImportError as e:
     ONNX_AVAILABLE = False
     print(f"Warning: ONNX dependencies not available: {e}")
 
-from .model_types import ONNXModelConfig, get_onnx_model_config, create_position_ids, initialize_kv_cache
+from .model_types import ONNXModelConfig, get_onnx_model_config, create_position_ids, initialize_kv_cache, REFERENCE_MODELS
 
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,12 @@ class ONNXModelLoader:
         component_paths = {}
         
         # Define fallback quantization options if the requested one doesn't exist
-        fallback_suffixes = ["", "_fp16", "_int8", "_quantized", "_uint8"]
+        # For Gemma 3n: _q4 works for decoder, but not for embed_tokens/vision/audio
+        if "gemma" in repo_id.lower():
+            fallback_suffixes = ["_q4", "_int8", "_uint8", "_quantized", "_fp16", ""]
+        else:
+            fallback_suffixes = ["_q4", "_fp16", "_int8", "_quantized", "_uint8", ""]
+        
         if quant_suffix and quant_suffix not in fallback_suffixes:
             fallback_suffixes.insert(0, quant_suffix)
         
@@ -163,7 +168,15 @@ class ONNXModelLoader:
         config = get_onnx_model_config(repo_id)
         
         if config is None:
-            raise ValueError(f"Unsupported model: {repo_id}. Add configuration to ONNX_MODEL_CONFIGS.")
+            # Provide helpful error with available models
+            try:
+                available_repos = list(REFERENCE_MODELS.keys())
+                raise ValueError(
+                    f"Unsupported model: {repo_id}. "
+                    f"Supported models: {', '.join(available_repos)}"
+                )
+            except:
+                raise ValueError(f"Unsupported model: {repo_id}. Check model configuration.")
         
         # Download auxiliary files
         self.download_auxiliary_files(repo_id)

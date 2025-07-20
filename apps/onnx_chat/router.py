@@ -68,5 +68,7 @@ async def chat_completions(request: Request):
             "model": req.model,
         }
     except Exception as e:
+        import traceback
         logger.error(f"Error generating text: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
