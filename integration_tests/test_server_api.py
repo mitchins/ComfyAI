@@ -18,7 +18,18 @@ else:
 def _client(monkeypatch):
     if TestClient is None:
         pytest.skip("fastapi not available")
-    # ensure classify returns predictable output
+    
+    # Mock the model loader to handle "test" model
+    from unittest.mock import Mock
+    
+    mock_engine = Mock()
+    mock_engine.generate_text.return_value = "positive"
+    
+    async def mock_get_inference_engine(model_name):
+        return mock_engine
+    
+    monkeypatch.setattr(onnx_server, "get_inference_engine", mock_get_inference_engine)
+    # Also keep the old classify for any legacy tests
     monkeypatch.setattr(onnx_server, "classify", lambda text, model=None: "positive")
     return TestClient(app)
 

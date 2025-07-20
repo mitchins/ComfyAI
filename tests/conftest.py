@@ -1,6 +1,17 @@
 import pytest
-from PIL import Image
-import numpy as np
+
+# Optional imports
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 import sys, types
 import os
 
@@ -23,7 +34,14 @@ for mod in ("torch", "onnxruntime", "uvicorn", "onnx"):
 @pytest.fixture
 def dummy_image():
     """16×16 black RGB image"""
-    return Image.fromarray(np.zeros((16,16,3), dtype=np.uint8))
+    if PIL_AVAILABLE:
+        return Image.fromarray(np.zeros((16,16,3), dtype=np.uint8))
+    else:
+        # Return a mock image object for tests
+        class MockImage:
+            def __init__(self):
+                self.size = (16, 16)
+        return MockImage()
 
 @pytest.fixture
 def dummy_string():

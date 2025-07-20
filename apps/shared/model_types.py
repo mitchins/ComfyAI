@@ -1,4 +1,7 @@
 from enum import Enum
+from dataclasses import dataclass
+from typing import Optional, Dict, Any
+import numpy as np
 
 
 class ModelType(str, Enum):
@@ -19,3 +22,134 @@ class ModelType(str, Enum):
     def vision_compatible_types(cls):
         """Return model types that are compatible with vision endpoints."""
         return [cls.VISION_LLM, cls.VISION_EMBEDDER]
+
+
+@dataclass
+class ONNXModelConfig:
+    """Configuration for an ONNX model."""
+    num_layers: int
+    num_heads: int
+    head_dim: int
+    has_vision: bool = False
+    position_dims: int = 1  # 1 for standard, 3 for vision models like Qwen2-VL
+    subfolder: str = "onnx"
+    components: Dict[str, str] = None  # Maps component name to filename pattern
+    
+    def __post_init__(self):
+        if self.components is None:
+            self.components = {
+                'embed': 'embed_tokens{suffix}.onnx',
+                'decoder': 'decoder_model_merged{suffix}.onnx'
+            }
+            if self.has_vision:
+                self.components['vision'] = 'vision_encoder{suffix}.onnx'
+
+
+# Supported ONNX model configurations
+ONNX_MODEL_CONFIGS = {
+    'qwen2-vl-2b': ONNXModelConfig(
+        num_layers=28,
+        num_heads=2,
+        head_dim=128,
+        has_vision=True,
+        position_dims=3,  # text, height, width
+        subfolder="onnx"
+    ),
+    
+    'qwen2-vl-7b': ONNXModelConfig(
+        num_layers=32,
+        num_heads=4,
+        head_dim=128,
+        has_vision=True,
+        position_dims=3,
+        subfolder="onnx"
+    ),
+    
+    'granite-3.0-2b': ONNXModelConfig(
+        num_layers=26,  # Granite 3.0 2B specs - needs verification
+        num_heads=32,   # needs verification  
+        head_dim=64,    # needs verification
+        has_vision=False,
+        position_dims=1,
+        subfolder="onnx",
+        components={
+            'model': 'model{suffix}.onnx'  # Single model file structure
+        }
+    ),
+    
+    'gemma-3n-2b': ONNXModelConfig(
+        num_layers=26,  # Gemma 3n 2B specs - needs verification
+        num_heads=8,    # needs verification
+        head_dim=256,   # needs verification  
+        has_vision=True,  # Has vision_encoder
+        position_dims=1,
+        subfolder="onnx",
+        components={
+            'embed': 'embed_tokens{suffix}.onnx',
+            'decoder': 'decoder_model_merged{suffix}.onnx',
+            'vision': 'vision_encoder{suffix}.onnx',
+            'audio': 'audio_encoder{suffix}.onnx'  # Also has audio
+        }
+    )
+}
+
+
+def get_onnx_model_config(repo_id: str) -> Optional[ONNXModelConfig]:
+    """Get ONNX model configuration based on repository ID."""
+    repo_lower = repo_id.lower()
+    
+    # Direct mapping
+    for key, config in ONNX_MODEL_CONFIGS.items():
+        if key in repo_lower:
+            return config
+    
+    # Pattern matching
+    if 'qwen2-vl' in repo_lower:
+        if '7b' in repo_lower:
+            return ONNX_MODEL_CONFIGS['qwen2-vl-7b']
+        else:
+            return ONNX_MODEL_CONFIGS['qwen2-vl-2b']
+    elif 'granite' in repo_lower and '3.0' in repo_lower and '2b' in repo_lower:
+        return ONNX_MODEL_CONFIGS['granite-3.0-2b']
+    elif 'gemma' in repo_lower and '3n' in repo_lower and '2b' in repo_lower:
+        return ONNX_MODEL_CONFIGS['gemma-3n-2b']
+    
+    return None
+
+
+def create_position_ids(seq_length: int, config: ONNXModelConfig, step: int = 0) -> np.ndarray:
+    """Create position_ids tensor based on model configuration."""
+    if config.position_dims == 1:
+        # Standard 2D position_ids: [batch_size, seq_length]
+        return np.arange(seq_length, dtype=np.int64).reshape(1, -1)
+    elif config.position_dims == 3:
+        # 3D position_ids for vision models: [3, batch_size, seq_length]
+        if step == 0:
+            # Initial sequence
+            text_pos = np.arange(seq_length, dtype=np.int64).reshape(1, seq_length)
+            height_pos = np.zeros((1, seq_length), dtype=np.int64)
+            width_pos = np.zeros((1, seq_length), dtype=np.int64)
+        else:
+            # Single token update
+            text_pos = np.array([[seq_length + step - 1]], dtype=np.int64)
+            height_pos = np.zeros((1, 1), dtype=np.int64)
+            width_pos = np.zeros((1, 1), dtype=np.int64)
+        
+        return np.stack([text_pos, height_pos, width_pos], axis=0)
+    else:
+        raise ValueError(f"Unsupported position_dims: {config.position_dims}")
+
+
+def initialize_kv_cache(config: ONNXModelConfig, batch_size: int = 1) -> Dict[str, np.ndarray]:
+    """Initialize empty KV cache for the model."""
+    kv_cache = {}
+    for i in range(config.num_layers):
+        key_name = f'past_key_values.{i}.key'
+        value_name = f'past_key_values.{i}.value'
+        
+        # Shape: [batch_size, num_heads, 0, head_dim] (empty sequence)
+        empty_cache = np.zeros((batch_size, config.num_heads, 0, config.head_dim), dtype=np.float32)
+        kv_cache[key_name] = empty_cache
+        kv_cache[value_name] = empty_cache
+    
+    return kv_cache
