@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch, MagicMock
 import numpy as np
 
 from apps.shared.onnx_loader import ONNXModelLoader, ONNXInferenceEngine
-from apps.shared.model_types import get_onnx_model_config, ONNX_MODEL_CONFIGS
+from apps.shared.model_types import get_onnx_model_config, REFERENCE_MODELS, ReferenceModel
 
 
 class TestONNXModelLoader:
@@ -39,13 +39,13 @@ class TestONNXModelLoader:
         assert suffix == ""
     
     @patch('apps.shared.onnx_loader.hf_hub_download')
-    @patch('apps.shared.onnx_loader.ort.InferenceSession')
+    @patch('apps.shared.onnx_loader.ort')
     @patch('apps.shared.onnx_loader.AutoTokenizer')
-    def test_load_model_success(self, mock_tokenizer, mock_session, mock_download):
+    def test_load_model_success(self, mock_tokenizer, mock_ort, mock_download):
         """Test successful model loading."""
         # Setup mocks
         mock_download.return_value = "/fake/path/model.onnx"
-        mock_session.return_value = Mock()
+        mock_ort.InferenceSession.return_value = Mock()
         mock_tokenizer.from_pretrained.return_value = Mock()
         
         # Test loading
@@ -56,7 +56,7 @@ class TestONNXModelLoader:
         assert 'embed' in sessions
         assert 'decoder' in sessions
         assert tokenizer is not None
-        assert config == ONNX_MODEL_CONFIGS['qwen2-vl-2b']
+        assert config == REFERENCE_MODELS[ReferenceModel.QWEN2_VL_2B].config
         
         # Verify caching
         assert model_name in self.loader.sessions_cache
@@ -94,7 +94,7 @@ class TestONNXInferenceEngine:
             'decoder': self.mock_decoder
         }
         
-        config = ONNX_MODEL_CONFIGS['qwen2-vl-2b']
+        config = REFERENCE_MODELS[ReferenceModel.QWEN2_VL_2B].config
         
         self.engine = ONNXInferenceEngine(sessions, self.mock_tokenizer, config)
     
@@ -154,8 +154,8 @@ class TestONNXInferenceEngine:
     
     def test_generate_text_with_images_unsupported(self):
         """Test that providing images to non-vision model raises error."""
-        # Create non-vision config
-        non_vision_config = ONNX_MODEL_CONFIGS['granite-3.0-2b']  # This is non-vision
+        # Create non-vision config - use Gemma-3n which is text-only
+        non_vision_config = REFERENCE_MODELS[ReferenceModel.GEMMA_3N_E2B].config
         
         # Create a mock single model
         mock_single_model = Mock()
@@ -179,7 +179,7 @@ class TestModelConfigs:
     def test_get_qwen2_vl_config(self):
         """Test getting Qwen2-VL configuration."""
         config = get_onnx_model_config("onnx-community/Qwen2-VL-2B-Instruct")
-        assert config == ONNX_MODEL_CONFIGS['qwen2-vl-2b']
+        assert config == REFERENCE_MODELS[ReferenceModel.QWEN2_VL_2B].config
         assert config.num_layers == 28
         assert config.has_vision == True
         assert config.position_dims == 3
@@ -187,7 +187,7 @@ class TestModelConfigs:
     def test_get_qwen2_vl_7b_config(self):
         """Test getting Qwen2-VL-7B configuration."""
         config = get_onnx_model_config("onnx-community/Qwen2-VL-7B-Instruct")
-        assert config == ONNX_MODEL_CONFIGS['qwen2-vl-7b']
+        assert config == REFERENCE_MODELS[ReferenceModel.QWEN2_VL_7B].config
         assert config.num_layers == 32
         assert config.num_heads == 4
     
@@ -198,7 +198,8 @@ class TestModelConfigs:
     
     def test_all_configs_have_required_fields(self):
         """Test that all model configs have required fields."""
-        for name, config in ONNX_MODEL_CONFIGS.items():
+        for ref_model, spec in REFERENCE_MODELS.items():
+            config = spec.config
             assert hasattr(config, 'num_layers')
             assert hasattr(config, 'num_heads') 
             assert hasattr(config, 'head_dim')
@@ -207,7 +208,7 @@ class TestModelConfigs:
             assert hasattr(config, 'components')
             
             # Check components - different architectures have different components
-            if 'granite' in name:
+            if 'granite' in ref_model.value or 'gemma' in ref_model.value:
                 # Single model architecture
                 assert 'model' in config.components
             else:

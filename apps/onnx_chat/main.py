@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from .config import load_config, setup_logging
 from apps.shared.manage_cache import download_file
+from apps.shared.model_types import ReferenceModel, Quantization, REFERENCE_MODELS
 
 # Optional import for testing environments
 try:
@@ -76,16 +77,45 @@ async def health_check():
     return {"status": "ok", "model": model_name}
 
 
+# Helper to validate model name against curated list
+def validate_model_name(model_name: str) -> str:
+    """Validate that the model is in our curated list and return the repo_id."""
+    # Handle direct reference model names
+    try:
+        ref_model = ReferenceModel(model_name)
+        if ref_model in REFERENCE_MODELS:
+            return REFERENCE_MODELS[ref_model].repo_id
+    except ValueError:
+        pass
+    
+    # Handle repo_id format (check if it matches any reference model repo_id)
+    for ref_model, spec in REFERENCE_MODELS.items():
+        if model_name == spec.repo_id or model_name.startswith(spec.repo_id):
+            return spec.repo_id
+    
+    # Model not in curated list
+    available_models = [f"{model.value} ({spec.repo_id})" for model, spec in REFERENCE_MODELS.items()]
+    raise HTTPException(
+        status_code=400, 
+        detail=f"Model '{model_name}' not supported. Available models: {', '.join(available_models)}"
+    )
+
 # Helper to get inference engine
 async def get_inference_engine(model_name: str) -> ONNXInferenceEngine:
-    if model_name not in engines_cache:
+    # Validate model first
+    validated_repo_id = validate_model_name(model_name)
+    
+    # Use validated repo_id with default quant for caching key
+    cache_key = f"{validated_repo_id}:q4"  # Always use Q4 (smallest) for testing
+    
+    if cache_key not in engines_cache:
         if ONNX_LOADER_AVAILABLE:
-            sessions, tokenizer, config = model_loader.load_model(model_name)
-            engines_cache[model_name] = ONNXInferenceEngine(sessions, tokenizer, config)
+            sessions, tokenizer, config = model_loader.load_model(cache_key)
+            engines_cache[cache_key] = ONNXInferenceEngine(sessions, tokenizer, config)
         else:
             # Mock engine for testing
-            engines_cache[model_name] = ONNXInferenceEngine()
-    return engines_cache[model_name]
+            engines_cache[cache_key] = ONNXInferenceEngine()
+    return engines_cache[cache_key]
 
 
 # Generate text using ONNX inference engine

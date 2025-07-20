@@ -1,6 +1,6 @@
 from enum import Enum
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import numpy as np
 
 
@@ -24,6 +24,30 @@ class ModelType(str, Enum):
         return [cls.VISION_LLM, cls.VISION_EMBEDDER]
 
 
+class ReferenceModel(str, Enum):
+    """Curated list of supported ONNX models."""
+    
+    # Qwen2-VL models - Vision + Text
+    QWEN2_VL_2B = "qwen2-vl-2b"
+    QWEN2_VL_7B = "qwen2-vl-7b"
+    
+    # Granite models - Vision + Text (NOT just text-only granite)
+    GRANITE_VISION_3_2B = "granite-vision-3-2b"
+    
+    # Gemma-3n models - Coming soon
+    GEMMA_3N_E2B = "gemma-3n-e2b"
+
+
+class Quantization(str, Enum):
+    """Supported quantization levels."""
+    
+    Q4 = "q4"           # 4-bit quantized
+    FP16 = "fp16"       # 16-bit floating point
+    INT8 = "int8"       # 8-bit integer
+    UINT8 = "uint8"     # 8-bit unsigned
+    FULL = "full"       # Full precision FP32
+
+
 @dataclass
 class ONNXModelConfig:
     """Configuration for an ONNX model."""
@@ -45,86 +69,85 @@ class ONNXModelConfig:
                 self.components['vision'] = 'vision_encoder{suffix}.onnx'
 
 
-# Reference ONNX model configurations - tested and verified working setups
-ONNX_MODEL_CONFIGS = {
-    # ✅ WORKING: Qwen2-VL 2B with multi-component architecture
-    'qwen2-vl-2b': ONNXModelConfig(
-        num_layers=28,
-        num_heads=2, 
-        head_dim=128,
-        has_vision=True,
-        position_dims=3,  # text, height, width
-        subfolder="onnx"
-        # Uses default multi-component: embed_tokens, decoder_model_merged, vision_encoder
-    ),
-    
-    # ✅ WORKING: Qwen2-VL 7B with multi-component architecture  
-    'qwen2-vl-7b': ONNXModelConfig(
-        num_layers=32,
-        num_heads=4,
-        head_dim=128,
-        has_vision=True,
-        position_dims=3,
-        subfolder="onnx"
-    ),
-    
-    # ✅ WORKING: Granite 3.0 2B with single model architecture
-    'granite-3.0-2b': ONNXModelConfig(
-        num_layers=26,
-        num_heads=32,
-        head_dim=64,
-        has_vision=False,
-        position_dims=1,
-        subfolder="onnx",
-        components={
-            'model': 'model{suffix}.onnx'  # Single model file - tested with _q4
-        }
-    ),
-    
-    # 🚧 TODO: Gemma 3n 2B - debugging in progress
-    # 'gemma-3n-2b': ONNXModelConfig(
-    #     num_layers=26,  
-    #     num_heads=8,    
-    #     head_dim=256,   
-    #     has_vision=True,  
-    #     position_dims=1,  
-    #     subfolder="onnx",
-    #     components={
-    #         'embed': 'embed_tokens{suffix}.onnx',
-    #         'decoder': 'decoder_model_merged{suffix}.onnx', 
-    #         'vision': 'vision_encoder{suffix}.onnx',
-    #         'audio': 'audio_encoder{suffix}.onnx'
-    #     }
-    # )
-}
+# Curated reference model specifications with verified working quantizations
+@dataclass
+class ModelSpec:
+    """Specification for a curated reference model."""
+    repo_id: str
+    config: ONNXModelConfig
+    supported_quants: List[Quantization]
+    default_quant: Quantization
+    description: str
 
-# Known working model specifications for reference server
+
+# Reference model catalog - curated and tested
 REFERENCE_MODELS = {
-    # Qwen2-VL models - multi-component, vision support
-    "onnx-community/Qwen2-VL-2B-Instruct": {
-        "config": "qwen2-vl-2b",
-        "recommended_quant": "_q4",
-        "description": "2B vision-language model, multi-component architecture"
-    },
-    "onnx-community/Qwen2-VL-7B-Instruct": {
-        "config": "qwen2-vl-7b", 
-        "recommended_quant": "_q4",
-        "description": "7B vision-language model, multi-component architecture"
-    },
+    ReferenceModel.QWEN2_VL_2B: ModelSpec(
+        repo_id="onnx-community/Qwen2-VL-2B-Instruct",
+        config=ONNXModelConfig(
+            num_layers=28,
+            num_heads=2,
+            head_dim=128,
+            has_vision=True,
+            position_dims=3,  # text, height, width
+            subfolder="onnx"
+        ),
+        supported_quants=[Quantization.Q4, Quantization.FP16],
+        default_quant=Quantization.Q4,
+        description="2B vision+text model, multi-component architecture"
+    ),
     
-    # Granite models - single file, text-only
-    "onnx-community/granite-3.0-2b-instruct": {
-        "config": "granite-3.0-2b",
-        "recommended_quant": "_q4", 
-        "description": "2B text-only model, single file architecture"
-    },
+    ReferenceModel.QWEN2_VL_7B: ModelSpec(
+        repo_id="onnx-community/Qwen2-VL-7B-Instruct", 
+        config=ONNXModelConfig(
+            num_layers=32,
+            num_heads=4,
+            head_dim=128,
+            has_vision=True,
+            position_dims=3,
+            subfolder="onnx"
+        ),
+        supported_quants=[Quantization.Q4, Quantization.FP16],
+        default_quant=Quantization.Q4,
+        description="7B vision+text model, multi-component architecture"
+    ),
     
-    # 🚧 TODO: Gemma 3n models - debugging in progress
-    # "onnx-community/gemma-3n-E2B-it-ONNX": {
-    #     "config": "gemma-3n-2b",
-    #     "recommended_quant": "_q4",
-    #     "description": "2B vision+audio+text model, multi-component architecture" 
-    # }
+    ReferenceModel.GRANITE_VISION_3_2B: ModelSpec(
+        repo_id="ibm-granite/granite-vision-3.2-2b",
+        config=ONNXModelConfig(
+            num_layers=24,
+            num_heads=32,
+            head_dim=64,
+            has_vision=True,
+            position_dims=1,
+            subfolder="onnx",
+            components={
+                'model': 'model{suffix}.onnx',
+                'vision': 'vision_encoder{suffix}.onnx'
+            }
+        ),
+        supported_quants=[Quantization.Q4, Quantization.FP16],
+        default_quant=Quantization.Q4,
+        description="2B vision+text model, Granite Vision architecture"
+    ),
+    
+    ReferenceModel.GEMMA_3N_E2B: ModelSpec(
+        repo_id="onnx-community/gemma-3n-E2B-it-ONNX",
+        config=ONNXModelConfig(
+            num_layers=24,
+            num_heads=16,
+            head_dim=64,
+            has_vision=False,
+            position_dims=1,
+            subfolder=".",  # Root of repo
+            components={
+                'model': 'model{suffix}.onnx'
+            }
+        ),
+        supported_quants=[Quantization.Q4, Quantization.FP16],
+        default_quant=Quantization.Q4,
+        description="2B text model, Gemma-3n architecture (coming soon)"
+    )
 }
 
 
@@ -132,21 +155,16 @@ def get_onnx_model_config(repo_id: str) -> Optional[ONNXModelConfig]:
     """Get ONNX model configuration based on repository ID."""
     repo_lower = repo_id.lower()
     
-    # Direct mapping
-    for key, config in ONNX_MODEL_CONFIGS.items():
-        if key in repo_lower:
-            return config
+    # Direct mapping by repo_id
+    for ref_model, spec in REFERENCE_MODELS.items():
+        if spec.repo_id.lower() == repo_lower:
+            return spec.config
     
-    # Pattern matching
-    if 'qwen2-vl' in repo_lower:
-        if '7b' in repo_lower:
-            return ONNX_MODEL_CONFIGS['qwen2-vl-7b']
-        else:
-            return ONNX_MODEL_CONFIGS['qwen2-vl-2b']
-    elif 'granite' in repo_lower and '3.0' in repo_lower and '2b' in repo_lower:
-        return ONNX_MODEL_CONFIGS['granite-3.0-2b']
-    elif 'gemma' in repo_lower and '3n' in repo_lower and '2b' in repo_lower:
-        return ONNX_MODEL_CONFIGS['gemma-3n-2b']
+    # Pattern matching for partial matches
+    for ref_model, spec in REFERENCE_MODELS.items():
+        spec_repo_lower = spec.repo_id.lower()
+        if spec_repo_lower in repo_lower or repo_lower in spec_repo_lower:
+            return spec.config
     
     return None
 
