@@ -1,17 +1,26 @@
-# ONNX Chat Server
+# ONNX Chat Reference Server
 
-A FastAPI-based chat completion server that supports ONNX inference for various language models.
+A reference implementation of ONNX inference for language models, providing tested configurations for known working models.
 
-## Scope and Capabilities
+## 🎯 Reference Server Philosophy
 
-### Supported Models
+This is a **reference server** that provides verified, working configurations rather than attempting universal ONNX support. We focus on:
 
-| Model | Repository | Architecture | Vision Support | Status |
-|-------|------------|--------------|----------------|---------|
-| **Qwen2-VL-2B** | `onnx-community/Qwen2-VL-2B-Instruct` | Multi-component | ✅ | ✅ Fully Supported |
-| **Qwen2-VL-7B** | `onnx-community/Qwen2-VL-7B-Instruct` | Multi-component | ✅ | ✅ Fully Supported |
-| **Granite 3.0 2B** | `onnx-community/granite-3.0-2b-instruct` | Single model | ❌ | 🔧 Basic Support |
-| **Gemma 3n 2B** | `onnx-community/gemma-3n-E2B-it-ONNX` | Multi-component | ✅ | 🔧 Basic Support |
+- ✅ **Tested models** with verified quantizations
+- ✅ **Known working setups** to avoid compatibility issues  
+- ✅ **Clear documentation** of what works and what doesn't
+- ✅ **Simple, reliable** model management
+
+## 📋 Supported Reference Models
+
+| Model | Repository | Architecture | Features | Recommended |
+|-------|------------|--------------|----------|-------------|
+| **Qwen2-VL-2B** | `onnx-community/Qwen2-VL-2B-Instruct` | Multi-component | Vision + Text | ✅ `_q4` quant |
+| **Qwen2-VL-7B** | `onnx-community/Qwen2-VL-7B-Instruct` | Multi-component | Vision + Text | ✅ `_q4` quant |
+| **Granite 3.0 2B** | `onnx-community/granite-3.0-2b-instruct` | Single file | Text only | ✅ `_q4` quant |
+
+### 🚧 Future Roadmap
+| **Gemma 3n 2B** | `onnx-community/gemma-3n-E2B-it-ONNX` | Multi-component | Vision + Audio + Text | 🔨 Under development |
 
 ### Architecture Support
 

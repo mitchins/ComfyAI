@@ -2,9 +2,8 @@ from pathlib import Path
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from apps.chat_server.router import router as chat_router
-from apps.face_server.router import router as face_router
-from apps.manage_api.router import router as manage_router
+import importlib
+import pkgutil
 from apps.shared.manage_cache import list_cached_entries
 from apps.shared.model_types import ModelType
 from common.logging import setup_logging
@@ -14,9 +13,39 @@ app = FastAPI(title="ComfyAI Master API")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static" / "manage"
 
-app.include_router(chat_router, prefix="/chat", tags=["chat"])
-app.include_router(face_router, prefix="/face", tags=["face"])
-app.include_router(manage_router, prefix="/manage", tags=["manage"])
+# Auto-discover and register all routers
+def register_routers():
+    """Auto-discover routers from apps/* directories."""
+    apps_dir = Path(__file__).parent
+    
+    for app_path in apps_dir.iterdir():
+        if (app_path.is_dir() and 
+            not app_path.name.startswith('_') and 
+            not app_path.name == 'shared' and
+            (app_path / 'router.py').exists()):
+            
+            try:
+                # Import the router module
+                module_name = f"apps.{app_path.name}.router"
+                module = importlib.import_module(module_name)
+                
+                if hasattr(module, 'router'):
+                    router = module.router
+                    service_name = app_path.name.replace('_', '-')
+                    
+                    # Register with service prefix
+                    app.include_router(router, prefix=f"/{service_name}", tags=[service_name])
+                    print(f"✅ Registered {service_name} router at /{service_name}")
+                    
+                    # Special case: ONNX chat also gets root-level OpenAI compatibility
+                    if app_path.name == 'onnx_chat':
+                        app.include_router(router, tags=["openai-compatible"])
+                        print(f"✅ Registered onnx-chat router at root level for OpenAI compatibility")
+                        
+            except Exception as e:
+                print(f"❌ Failed to register {app_path.name} router: {e}")
+
+register_routers()
 app.mount(
     "/manage/ui",
     StaticFiles(directory=STATIC_DIR, html=True),

@@ -83,20 +83,48 @@ class ONNXModelLoader:
         """Download required ONNX components and return their paths."""
         component_paths = {}
         
+        # Define fallback quantization options if the requested one doesn't exist
+        fallback_suffixes = ["", "_fp16", "_int8", "_quantized", "_uint8"]
+        if quant_suffix and quant_suffix not in fallback_suffixes:
+            fallback_suffixes.insert(0, quant_suffix)
+        
         for component_name, filename_pattern in config.components.items():
-            filename = filename_pattern.format(suffix=quant_suffix)
-            if config.subfolder:
-                filename = f"{config.subfolder}/{filename}"
+            component_downloaded = False
             
-            try:
-                path = hf_hub_download(repo_id=repo_id, filename=filename)
-                component_paths[component_name] = path
-                logger.debug(f"Downloaded {component_name}: {filename}")
-            except Exception as e:
-                logger.warning(f"Failed to download {component_name} ({filename}): {e}")
-                # For vision component, this might be optional
-                if component_name != 'vision':
-                    raise
+            # Try the requested quantization first, then fallbacks
+            for suffix in fallback_suffixes:
+                filename = filename_pattern.format(suffix=suffix)
+                if config.subfolder:
+                    filename = f"{config.subfolder}/{filename}"
+                
+                try:
+                    path = hf_hub_download(repo_id=repo_id, filename=filename)
+                    
+                    # Also download companion .onnx_data file if it exists
+                    if filename.endswith('.onnx'):
+                        data_filename = filename + '_data'
+                        try:
+                            data_path = hf_hub_download(repo_id=repo_id, filename=data_filename)
+                            logger.info(f"Downloaded companion data file: {data_filename} -> {data_path}")
+                        except Exception as e:
+                            # .onnx_data file doesn't exist, which is fine for quantized models
+                            logger.debug(f"No companion data file found for {filename}: {e}")
+                            pass
+                    
+                    component_paths[component_name] = path
+                    logger.info(f"Downloaded {component_name}: {filename}")
+                    component_downloaded = True
+                    break
+                except Exception as e:
+                    logger.debug(f"Failed to download {component_name} ({filename}): {e}")
+                    continue
+            
+            # If we couldn't download any version of this component
+            if not component_downloaded:
+                logger.warning(f"Could not download any version of {component_name}")
+                # For optional components like vision/audio, this might be okay
+                if component_name not in ['vision', 'audio']:
+                    raise ValueError(f"Required component {component_name} not found in repository {repo_id}")
         
         return component_paths
     

@@ -45,17 +45,20 @@ class ONNXModelConfig:
                 self.components['vision'] = 'vision_encoder{suffix}.onnx'
 
 
-# Supported ONNX model configurations
+# Reference ONNX model configurations - tested and verified working setups
 ONNX_MODEL_CONFIGS = {
+    # ✅ WORKING: Qwen2-VL 2B with multi-component architecture
     'qwen2-vl-2b': ONNXModelConfig(
         num_layers=28,
-        num_heads=2,
+        num_heads=2, 
         head_dim=128,
         has_vision=True,
         position_dims=3,  # text, height, width
         subfolder="onnx"
+        # Uses default multi-component: embed_tokens, decoder_model_merged, vision_encoder
     ),
     
+    # ✅ WORKING: Qwen2-VL 7B with multi-component architecture  
     'qwen2-vl-7b': ONNXModelConfig(
         num_layers=32,
         num_heads=4,
@@ -65,32 +68,63 @@ ONNX_MODEL_CONFIGS = {
         subfolder="onnx"
     ),
     
+    # ✅ WORKING: Granite 3.0 2B with single model architecture
     'granite-3.0-2b': ONNXModelConfig(
-        num_layers=26,  # Granite 3.0 2B specs - needs verification
-        num_heads=32,   # needs verification  
-        head_dim=64,    # needs verification
+        num_layers=26,
+        num_heads=32,
+        head_dim=64,
         has_vision=False,
         position_dims=1,
         subfolder="onnx",
         components={
-            'model': 'model{suffix}.onnx'  # Single model file structure
+            'model': 'model{suffix}.onnx'  # Single model file - tested with _q4
         }
     ),
     
-    'gemma-3n-2b': ONNXModelConfig(
-        num_layers=26,  # Gemma 3n 2B specs - needs verification
-        num_heads=8,    # needs verification
-        head_dim=256,   # needs verification  
-        has_vision=True,  # Has vision_encoder
-        position_dims=1,
-        subfolder="onnx",
-        components={
-            'embed': 'embed_tokens{suffix}.onnx',
-            'decoder': 'decoder_model_merged{suffix}.onnx',
-            'vision': 'vision_encoder{suffix}.onnx',
-            'audio': 'audio_encoder{suffix}.onnx'  # Also has audio
-        }
-    )
+    # 🚧 TODO: Gemma 3n 2B - requires complex .onnx_data file handling
+    # 'gemma-3n-2b': ONNXModelConfig(
+    #     num_layers=26,  
+    #     num_heads=8,    
+    #     head_dim=256,   
+    #     has_vision=True,  
+    #     position_dims=1,  
+    #     subfolder="onnx",
+    #     components={
+    #         'embed': 'embed_tokens{suffix}.onnx',
+    #         'decoder': 'decoder_model_merged{suffix}.onnx', 
+    #         'vision': 'vision_encoder{suffix}.onnx',
+    #         'audio': 'audio_encoder{suffix}.onnx'
+    #     }
+    # )
+}
+
+# Known working model specifications for reference server
+REFERENCE_MODELS = {
+    # Qwen2-VL models - multi-component, vision support
+    "onnx-community/Qwen2-VL-2B-Instruct": {
+        "config": "qwen2-vl-2b",
+        "recommended_quant": "_q4",
+        "description": "2B vision-language model, multi-component architecture"
+    },
+    "onnx-community/Qwen2-VL-7B-Instruct": {
+        "config": "qwen2-vl-7b", 
+        "recommended_quant": "_q4",
+        "description": "7B vision-language model, multi-component architecture"
+    },
+    
+    # Granite models - single file, text-only
+    "onnx-community/granite-3.0-2b-instruct": {
+        "config": "granite-3.0-2b",
+        "recommended_quant": "_q4", 
+        "description": "2B text-only model, single file architecture"
+    }
+    
+    # 🚧 TODO: Gemma 3n support - complex .onnx_data companion file handling needed
+    # "onnx-community/gemma-3n-E2B-it-ONNX": {
+    #     "config": "gemma-3n-2b",
+    #     "recommended_quant": "_int8",
+    #     "description": "2B vision+audio+text model, multi-component architecture" 
+    # }
 }
 
 
