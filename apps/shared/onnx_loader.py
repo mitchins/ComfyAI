@@ -403,8 +403,14 @@ class ONNXInferenceEngine:
             embed_outputs = self.embed_model.run(None, {'input_ids': input_ids})
             inputs_embeds = embed_outputs[0]
         elif self.prepare_inputs_embeds_model is not None:
-            # Phi-3.5 style prepare_inputs_embeds
-            embed_outputs = self.prepare_inputs_embeds_model.run(None, {'input_ids': input_ids})
+            # Phi-3.5 style prepare_inputs_embeds - requires image_features input
+            # For text-only inference, provide empty image_features indicating no images
+            dummy_image_features = np.zeros((0, 3072), dtype=np.float32)  # No images (empty sequence)
+            embed_inputs = {
+                'input_ids': input_ids,
+                'image_features': dummy_image_features
+            }
+            embed_outputs = self.prepare_inputs_embeds_model.run(None, embed_inputs)
             inputs_embeds = embed_outputs[0]
         else:
             raise ValueError("No embedding model available for multi-component inference")
@@ -450,8 +456,13 @@ class ONNXInferenceEngine:
                 # Standard embedding model
                 next_embed = self.embed_model.run(None, {'input_ids': np.array([[next_token]])})
             elif self.prepare_inputs_embeds_model is not None:
-                # Phi-3.5 style prepare_inputs_embeds
-                next_embed = self.prepare_inputs_embeds_model.run(None, {'input_ids': np.array([[next_token]])})
+                # Phi-3.5 style prepare_inputs_embeds - requires image_features input  
+                dummy_image_features = np.zeros((0, 3072), dtype=np.float32)  # No images (empty sequence)
+                next_embed_inputs = {
+                    'input_ids': np.array([[next_token]]),
+                    'image_features': dummy_image_features
+                }
+                next_embed = self.prepare_inputs_embeds_model.run(None, next_embed_inputs)
             else:
                 raise ValueError("No embedding model available for next token generation")
             
