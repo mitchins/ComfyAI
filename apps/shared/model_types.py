@@ -34,17 +34,23 @@ class ReferenceModel(str, Enum):
     # Granite models - Vision + Text (NOT just text-only granite)
     GRANITE_VISION_3_2B = "granite-vision-3-2b"
     
-    # Gemma-3n models - Coming soon
+    # Gemma-3n models - Vision + Text + Audio
     GEMMA_3N_E2B = "gemma-3n-e2b"
+    
+    # Phi-3.5 vision models
+    PHI_3_5_VISION = "phi-3.5-vision"
 
 
 class Quantization(str, Enum):
     """Supported quantization levels."""
     
     Q4 = "q4"           # 4-bit quantized
+    Q4_F16 = "q4f16"    # 4-bit quantized with FP16 weights
+    BNB4 = "bnb4"       # BitsAndBytes 4-bit
     FP16 = "fp16"       # 16-bit floating point
     INT8 = "int8"       # 8-bit integer
     UINT8 = "uint8"     # 8-bit unsigned
+    QUANTIZED = "quantized"  # Generic quantized
     FULL = "full"       # Full precision FP32
 
 
@@ -79,6 +85,77 @@ class ModelSpec:
     default_quant: Quantization
     description: str
 
+
+# Optimal "Model/Quant" → component mappings (only quants fully supported by all submodels)
+MODEL_QUANT_CONFIGS = {
+    # Qwen2-VL-2B-Instruct supports all eight quant types across decoder, embed & vision
+    "Qwen2-VL-2B-Instruct/FP32": {
+        "decoder":         "onnx/decoder_model_merged.onnx",
+        "embed_tokens":    "onnx/embed_tokens.onnx",
+        "vision_encoder":  "onnx/vision_encoder.onnx",
+    },
+    "Qwen2-VL-2B-Instruct/FP16": {
+        "decoder":         "onnx/decoder_model_merged_fp16.onnx",
+        "embed_tokens":    "onnx/embed_tokens_fp16.onnx",
+        "vision_encoder":  "onnx/vision_encoder_fp16.onnx",
+    },
+    "Qwen2-VL-2B-Instruct/INT8": {
+        "decoder":         "onnx/decoder_model_merged_int8.onnx",
+        "embed_tokens":    "onnx/embed_tokens_int8.onnx",
+        "vision_encoder":  "onnx/vision_encoder_int8.onnx",
+    },
+    "Qwen2-VL-2B-Instruct/Q4": {
+        "decoder":         "onnx/decoder_model_merged_q4.onnx",
+        "embed_tokens":    "onnx/embed_tokens_q4.onnx",
+        "vision_encoder":  "onnx/vision_encoder_q4.onnx",
+    },
+    "Qwen2-VL-2B-Instruct/Q4_F16": {
+        "decoder":         "onnx/decoder_model_merged_q4f16.onnx",
+        "embed_tokens":    "onnx/embed_tokens_q4f16.onnx",
+        "vision_encoder":  "onnx/vision_encoder_q4f16.onnx",
+    },
+    "Qwen2-VL-2B-Instruct/BNB4": {
+        "decoder":         "onnx/decoder_model_merged_bnb4.onnx",
+        "embed_tokens":    "onnx/embed_tokens_bnb4.onnx",
+        "vision_encoder":  "onnx/vision_encoder_bnb4.onnx",
+    },
+    "Qwen2-VL-2B-Instruct/QUANTIZED": {
+        "decoder":         "onnx/decoder_model_merged_quantized.onnx",
+        "embed_tokens":    "onnx/embed_tokens_quantized.onnx",
+        "vision_encoder":  "onnx/vision_encoder_quantized.onnx",
+    },
+    "Qwen2-VL-2B-Instruct/UINT8": {
+        "decoder":         "onnx/decoder_model_merged_uint8.onnx",
+        "embed_tokens":    "onnx/embed_tokens_uint8.onnx",
+        "vision_encoder":  "onnx/vision_encoder_uint8.onnx",
+    },
+
+    # Gemma-3n-E2B-it-ONNX only has FP32 & FP16 universally
+    "Gemma-3n-E2B-it-ONNX/FP32": {
+        "audio_encoder":   "onnx/audio_encoder.onnx",
+        "decoder":         "onnx/decoder_model_merged.onnx",
+        "embed_tokens":    "onnx/embed_tokens.onnx",
+        "vision_encoder":  "onnx/vision_encoder.onnx",
+    },
+    "Gemma-3n-E2B-it-ONNX/FP16": {
+        "audio_encoder":   "onnx/audio_encoder_fp16.onnx",
+        "decoder":         "onnx/decoder_model_merged_fp16.onnx",
+        "embed_tokens":    "onnx/embed_tokens_fp16.onnx",
+        "vision_encoder":  "onnx/vision_encoder_fp16.onnx",
+    },
+
+    # Phi-3.5-vision-instruct only Q4 & Q4_F16
+    "Phi-3.5-vision-instruct/Q4": {
+        "prepare_inputs_embeds": "onnx/prepare_inputs_embeds_q4.onnx",
+        "decoder":               "onnx/model_q4.onnx",
+        "vision_encoder":        "onnx/vision_encoder_q4.onnx",
+    },
+    "Phi-3.5-vision-instruct/Q4_F16": {
+        "prepare_inputs_embeds": "onnx/prepare_inputs_embeds_q4f16.onnx",
+        "decoder":               "onnx/model_q4f16.onnx",
+        "vision_encoder":        "onnx/vision_encoder_q4f16.onnx",
+    },
+}
 
 # Reference model catalog - curated and tested
 REFERENCE_MODELS = {
@@ -137,18 +214,67 @@ REFERENCE_MODELS = {
             num_layers=24,
             num_heads=16,
             head_dim=64,
-            has_vision=False,
+            has_vision=True,  # Updated: Gemma-3n has vision + audio
             position_dims=1,
-            subfolder=".",  # Root of repo
+            subfolder="onnx",  # Updated to use onnx subfolder
             components={
-                'model': 'model{suffix}.onnx'
+                'audio_encoder': 'audio_encoder{suffix}.onnx',
+                'decoder': 'decoder_model_merged{suffix}.onnx',
+                'embed_tokens': 'embed_tokens{suffix}.onnx',
+                'vision_encoder': 'vision_encoder{suffix}.onnx',
             }
         ),
-        supported_quants=[Quantization.Q4, Quantization.FP16],
-        default_quant=Quantization.Q4,
-        description="2B text model, Gemma-3n architecture (coming soon)"
+        supported_quants=[Quantization.FULL, Quantization.FP16],  # Only FP32 and FP16
+        default_quant=Quantization.FP16,  # Use FP16 as default (smaller)
+        description="2B multimodal model with vision, text, and audio"
+    ),
+    
+    ReferenceModel.PHI_3_5_VISION: ModelSpec(
+        repo_id="onnx-community/Phi-3.5-vision-instruct",
+        config=ONNXModelConfig(
+            num_layers=32,
+            num_heads=32,
+            head_dim=96,
+            has_vision=True,
+            position_dims=1,
+            subfolder="onnx",
+            components={
+                'prepare_inputs_embeds': 'prepare_inputs_embeds{suffix}.onnx',
+                'decoder': 'model{suffix}.onnx',
+                'vision_encoder': 'vision_encoder{suffix}.onnx',
+            }
+        ),
+        supported_quants=[Quantization.Q4, Quantization.Q4_F16],  # Only Q4 and Q4_F16 available
+        default_quant=Quantization.Q4,  # Use Q4 as smallest
+        description="4B vision+text model, Phi-3.5 vision architecture"
     )
 }
+
+
+def get_curated_model_config(model_quant_name: str) -> Optional[Dict[str, str]]:
+    """Get curated model/quant configuration based on model/quant name."""
+    return MODEL_QUANT_CONFIGS.get(model_quant_name)
+
+
+def get_available_model_quants() -> List[str]:
+    """Get list of all available model/quant combinations."""
+    return list(MODEL_QUANT_CONFIGS.keys())
+
+
+def get_smallest_quant_for_model(model_name: str) -> Optional[str]:
+    """Get the smallest quantization available for a given model."""
+    # Define quant order from smallest to largest
+    quant_priority = ["UINT8", "INT8", "Q4", "Q4_F16", "BNB4", "QUANTIZED", "FP16", "FP32"]
+    
+    available_configs = [key for key in MODEL_QUANT_CONFIGS.keys() if key.startswith(model_name + "/")]
+    
+    for quant in quant_priority:
+        for config in available_configs:
+            if config.endswith("/" + quant):
+                return config
+    
+    # If no specific quant found, return first available
+    return available_configs[0] if available_configs else None
 
 
 def get_onnx_model_config(repo_id: str) -> Optional[ONNXModelConfig]:

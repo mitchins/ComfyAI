@@ -4,44 +4,46 @@ from typing import Dict, Optional, List, Any
 import logging
 import numpy as np
 
-# Optional imports for testing environments
-try:
-    import onnxruntime as ort
-    from transformers import AutoTokenizer
-    from huggingface_hub import hf_hub_download
-    ONNX_AVAILABLE = True
-except ImportError as e:
-    # Mock classes for testing environments
-    class MockSession:
-        def run(self, *args, **kwargs):
-            return [np.random.rand(1, 10, 32000)]
-        def get_inputs(self):
-            return [type('MockInput', (), {'name': 'input_ids'})()]
-    
-    class MockTokenizer:
-        def __init__(self, *args, **kwargs):
-            pass
-        def __call__(self, *args, **kwargs):
-            return {'input_ids': np.array([[1, 2, 3]])}
-        @property 
-        def eos_token_id(self):
-            return 2
-        def decode(self, *args, **kwargs):
-            return "mocked response"
-        @classmethod
-        def from_pretrained(cls, *args, **kwargs):
-            return cls()
-    
-    def mock_hf_hub_download(*args, **kwargs):
-        return "/mock/path/model.onnx"
-    
-    ort = type('MockORT', (), {'InferenceSession': MockSession})()
-    AutoTokenizer = MockTokenizer
-    hf_hub_download = mock_hf_hub_download
-    ONNX_AVAILABLE = False
-    print(f"Warning: ONNX dependencies not available: {e}")
 
-from .model_types import ONNXModelConfig, get_onnx_model_config, create_position_ids, initialize_kv_cache, REFERENCE_MODELS
+import onnxruntime as ort
+from transformers import AutoTokenizer
+from huggingface_hub import hf_hub_download
+ONNX_AVAILABLE = True
+    # Mock classes for testing environments
+    # class MockSession:
+    #     def run(self, *args, **kwargs):
+    #         return [np.random.rand(1, 10, 32000)]
+    #     def get_inputs(self):
+    #         return [type('MockInput', (), {'name': 'input_ids'})()]
+    
+    # class MockTokenizer:
+    #     def __init__(self, *args, **kwargs):
+    #         pass
+    #     def __call__(self, *args, **kwargs):
+    #         return {'input_ids': np.array([[1, 2, 3]])}
+    #     @property 
+    #     def eos_token_id(self):
+    #         return 2
+    #     def decode(self, *args, **kwargs):
+    #         return "mocked response"
+    #     @classmethod
+    #     def from_pretrained(cls, *args, **kwargs):
+    #         return cls()
+    
+    # def mock_hf_hub_download(*args, **kwargs):
+    #     return "/mock/path/model.onnx"
+    
+    # ort = type('MockORT', (), {'InferenceSession': MockSession})
+    # AutoTokenizer = MockTokenizer
+    # hf_hub_download = mock_hf_hub_download
+    # ONNX_AVAILABLE = False
+    # print(f"Warning: ONNX dependencies not available: {e}")
+
+from .model_types import (
+    ONNXModelConfig, get_onnx_model_config, create_position_ids, initialize_kv_cache, 
+    REFERENCE_MODELS, MODEL_QUANT_CONFIGS, get_curated_model_config, get_available_model_quants,
+    get_smallest_quant_for_model
+)
 
 
 logger = logging.getLogger(__name__)
@@ -155,8 +157,110 @@ class ONNXModelLoader:
                 # These files are optional
                 pass
     
+    def load_curated_model(self, model_quant_name: str) -> tuple[Dict[str, Any], AutoTokenizer, ONNXModelConfig]:
+        """Load ONNX model using curated model/quant configurations."""
+        if model_quant_name in self.sessions_cache:
+            return (
+                self.sessions_cache[model_quant_name],
+                self.tokenizers_cache[model_quant_name], 
+                self.configs_cache[model_quant_name]
+            )
+        
+        # Get curated component paths
+        component_config = get_curated_model_config(model_quant_name)
+        if component_config is None:
+            available_configs = get_available_model_quants()
+            raise ValueError(
+                f"Model/quant '{model_quant_name}' not in curated list. "
+                f"Available: {', '.join(available_configs[:5])}..." if len(available_configs) > 5 
+                else f"Available: {', '.join(available_configs)}"
+            )
+        
+        # Extract repo_id from model name (before the slash)
+        model_name = model_quant_name.split('/')[0]
+        repo_id = self._get_repo_id_from_model_name(model_name)
+        if repo_id is None:
+            raise ValueError(f"Unknown model name: {model_name}")
+        
+        # Get model config from reference models
+        config = get_onnx_model_config(repo_id)
+        if config is None:
+            raise ValueError(f"No configuration found for model: {repo_id}")
+        
+        # Download auxiliary files
+        self.download_auxiliary_files(repo_id)
+        
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(repo_id, use_fast=True, trust_remote_code=True)
+        
+        # Download components using curated paths
+        component_paths = self.download_curated_components(repo_id, component_config)
+        
+        # Load ONNX sessions
+        sessions = {}
+        for component_name, path in component_paths.items():
+            print(f"DEBUG CURATED: About to create InferenceSession for {component_name}")
+            print(f"DEBUG CURATED: ort type: {type(ort)}")
+            print(f"DEBUG CURATED: ort: {ort}")
+            print(f"DEBUG CURATED: hasattr InferenceSession: {hasattr(ort, 'InferenceSession')}")
+            print(ort)
+            if hasattr(ort, 'InferenceSession'):
+                print(f"DEBUG CURATED: InferenceSession: {ort.InferenceSession}")
+            else:
+                print(f"DEBUG CURATED: ort attributes: {[attr for attr in dir(ort) if not attr.startswith('_')]}")
+            sessions[component_name] = ort.InferenceSession(path)
+            logger.info(f"Loaded {component_name} from {path}")
+        
+        # Cache everything
+        self.sessions_cache[model_quant_name] = sessions
+        self.tokenizers_cache[model_quant_name] = tokenizer
+        self.configs_cache[model_quant_name] = config
+        
+        return sessions, tokenizer, config
+    
+    def _get_repo_id_from_model_name(self, model_name: str) -> Optional[str]:
+        """Map model name to repo_id using curated model mappings."""
+        model_repo_mapping = {
+            "Qwen2-VL-2B-Instruct": "onnx-community/Qwen2-VL-2B-Instruct",
+            "Gemma-3n-E2B-it-ONNX": "onnx-community/gemma-3n-E2B-it-ONNX", 
+            "Phi-3.5-vision-instruct": "onnx-community/Phi-3.5-vision-instruct",
+        }
+        return model_repo_mapping.get(model_name)
+    
+    def download_curated_components(self, repo_id: str, component_config: Dict[str, str]) -> Dict[str, str]:
+        """Download components using curated file paths."""
+        component_paths = {}
+        
+        for component_name, filename in component_config.items():
+            try:
+                path = hf_hub_download(repo_id=repo_id, filename=filename)
+                
+                # Also download companion .onnx_data file if it exists
+                if filename.endswith('.onnx'):
+                    data_filename = filename + '_data'
+                    try:
+                        data_path = hf_hub_download(repo_id=repo_id, filename=data_filename)
+                        logger.info(f"Downloaded companion data file: {data_filename} -> {data_path}")
+                    except Exception as e:
+                        # .onnx_data file doesn't exist, which is fine for quantized models
+                        logger.debug(f"No companion data file found for {filename}: {e}")
+                        pass
+                
+                component_paths[component_name] = path
+                logger.info(f"Downloaded {component_name}: {filename}")
+            except Exception as e:
+                logger.error(f"Failed to download {component_name} ({filename}): {e}")
+                raise ValueError(f"Required component {component_name} not found in repository {repo_id}")
+        
+        return component_paths
+
     def load_model(self, model_name: str) -> tuple[Dict[str, Any], AutoTokenizer, ONNXModelConfig]:
         """Load ONNX model components, tokenizer, and config."""
+        # Check if this is a curated model/quant combo first
+        if '/' in model_name and get_curated_model_config(model_name) is not None:
+            return self.load_curated_model(model_name)
+        
+        # Fall back to legacy loading for backwards compatibility
         if model_name in self.sessions_cache:
             return (
                 self.sessions_cache[model_name],
@@ -191,10 +295,7 @@ class ONNXModelLoader:
         # Load ONNX sessions
         sessions = {}
         for component_name, path in component_paths.items():
-            if ONNX_AVAILABLE:
-                sessions[component_name] = ort.InferenceSession(path)
-            else:
-                sessions[component_name] = ort.InferenceSession()  # Mock session
+            sessions[component_name] = ort.InferenceSession(path)
             logger.info(f"Loaded {component_name} from {path}")
         
         # Cache everything
@@ -219,16 +320,35 @@ class ONNXInferenceEngine:
             self.model = sessions['model']
             self.embed_model = None
             self.decoder_model = None
+            self.prepare_inputs_embeds_model = None
             self.model_input_names = [inp.name for inp in self.model.get_inputs()]
         else:
-            # Multi-component model (like Qwen2-VL)
-            self.embed_model = sessions['embed']
-            self.decoder_model = sessions['decoder']
+            # Multi-component models
             self.model = None
+            self.decoder_model = sessions['decoder']
             self.decoder_input_names = [inp.name for inp in self.decoder_model.get_inputs()]
             
-        self.vision_model = sessions.get('vision')  # Optional
-        self.audio_model = sessions.get('audio')   # Optional
+            # Different embedding architectures
+            if 'embed' in sessions:
+                # Qwen2-VL style: separate embed_tokens
+                self.embed_model = sessions['embed']
+                self.prepare_inputs_embeds_model = None
+            elif 'embed_tokens' in sessions:
+                # Gemma style: embed_tokens
+                self.embed_model = sessions['embed_tokens']
+                self.prepare_inputs_embeds_model = None
+            elif 'prepare_inputs_embeds' in sessions:
+                # Phi-3.5 style: prepare_inputs_embeds
+                self.embed_model = None
+                self.prepare_inputs_embeds_model = sessions['prepare_inputs_embeds']
+            else:
+                # No embedding model found
+                self.embed_model = None
+                self.prepare_inputs_embeds_model = None
+            
+        # Optional components
+        self.vision_model = sessions.get('vision') or sessions.get('vision_encoder')  # Optional
+        self.audio_model = sessions.get('audio') or sessions.get('audio_encoder')   # Optional
     
     def generate_text(self, text: str, max_tokens: int = 100, images: Optional[List[str]] = None) -> str:
         """Generate text using the ONNX model."""
@@ -277,9 +397,17 @@ class ONNXInferenceEngine:
         input_ids = inputs['input_ids']
         attention_mask = inputs.get('attention_mask', np.ones_like(input_ids))
         
-        # Get embeddings
-        embed_outputs = self.embed_model.run(None, {'input_ids': input_ids})
-        inputs_embeds = embed_outputs[0]
+        # Get embeddings based on architecture
+        if self.embed_model is not None:
+            # Standard embedding model (Qwen2-VL, Gemma)
+            embed_outputs = self.embed_model.run(None, {'input_ids': input_ids})
+            inputs_embeds = embed_outputs[0]
+        elif self.prepare_inputs_embeds_model is not None:
+            # Phi-3.5 style prepare_inputs_embeds
+            embed_outputs = self.prepare_inputs_embeds_model.run(None, {'input_ids': input_ids})
+            inputs_embeds = embed_outputs[0]
+        else:
+            raise ValueError("No embedding model available for multi-component inference")
         
         # Initialize sequence tracking
         batch_size = 1
@@ -317,8 +445,15 @@ class ONNXInferenceEngine:
             # Update sequence
             generated_ids = np.concatenate([generated_ids, [[next_token]]], axis=1)
             
-            # Get next token embeddings
-            next_embed = self.embed_model.run(None, {'input_ids': np.array([[next_token]])})
+            # Get next token embeddings based on architecture
+            if self.embed_model is not None:
+                # Standard embedding model
+                next_embed = self.embed_model.run(None, {'input_ids': np.array([[next_token]])})
+            elif self.prepare_inputs_embeds_model is not None:
+                # Phi-3.5 style prepare_inputs_embeds
+                next_embed = self.prepare_inputs_embeds_model.run(None, {'input_ids': np.array([[next_token]])})
+            else:
+                raise ValueError("No embedding model available for next token generation")
             
             # Update inputs for next iteration
             onnx_inputs['inputs_embeds'] = next_embed[0]

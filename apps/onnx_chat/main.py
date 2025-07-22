@@ -10,7 +10,10 @@ from pydantic import BaseModel, ValidationError
 
 from .config import load_config, setup_logging
 from apps.shared.manage_cache import download_file
-from apps.shared.model_types import ReferenceModel, Quantization, REFERENCE_MODELS
+from apps.shared.model_types import (
+    ReferenceModel, Quantization, REFERENCE_MODELS, 
+    get_available_model_quants, get_smallest_quant_for_model
+)
 
 # Optional import for testing environments
 try:
@@ -93,11 +96,24 @@ def validate_model_name(model_name: str) -> str:
         if model_name == spec.repo_id or model_name.startswith(spec.repo_id):
             return spec.repo_id
     
+    # Handle curated model names directly
+    curated_model_names = ["Qwen2-VL-2B-Instruct", "Gemma-3n-E2B-it-ONNX", "Phi-3.5-vision-instruct"]
+    for curated_name in curated_model_names:
+        if model_name == curated_name or model_name.startswith(curated_name):
+            # Map curated name back to repo_id
+            mapping = {
+                "Qwen2-VL-2B-Instruct": "onnx-community/Qwen2-VL-2B-Instruct",
+                "Gemma-3n-E2B-it-ONNX": "onnx-community/gemma-3n-E2B-it-ONNX",
+                "Phi-3.5-vision-instruct": "onnx-community/Phi-3.5-vision-instruct",
+            }
+            return mapping[curated_name]
+    
     # Model not in curated list
     available_models = [f"{model.value} ({spec.repo_id})" for model, spec in REFERENCE_MODELS.items()]
+    available_curated = get_available_model_quants()[:3]  # Show first 3
     raise HTTPException(
         status_code=400, 
-        detail=f"Model '{model_name}' not supported. Available models: {', '.join(available_models)}"
+        detail=f"Model '{model_name}' not supported. Available reference models: {', '.join(available_models)} or curated models: {', '.join(available_curated)}..."
     )
 
 # Helper to get inference engine
@@ -105,17 +121,31 @@ async def get_inference_engine(model_name: str) -> ONNXInferenceEngine:
     # Validate model first
     validated_repo_id = validate_model_name(model_name)
     
-    # Use validated repo_id with default quant for caching key
-    cache_key = f"{validated_repo_id}:q4"  # Always use Q4 (smallest) for testing
+    # Map repo_id back to model name for curated configs
+    model_name_mapping = {
+        "onnx-community/Qwen2-VL-2B-Instruct": "Qwen2-VL-2B-Instruct",
+        "onnx-community/gemma-3n-E2B-it-ONNX": "Gemma-3n-E2B-it-ONNX",
+        "onnx-community/Phi-3.5-vision-instruct": "Phi-3.5-vision-instruct",
+    }
     
-    if cache_key not in engines_cache:
+    curated_model_name = model_name_mapping.get(validated_repo_id)
+    if curated_model_name:
+        # Use curated model with smallest quantization
+        model_quant_key = get_smallest_quant_for_model(curated_model_name)
+        if model_quant_key is None:
+            raise ValueError(f"No quantization found for curated model: {curated_model_name}")
+    else:
+        # Fall back to legacy approach
+        model_quant_key = f"{validated_repo_id}:q4"
+    
+    if model_quant_key not in engines_cache:
         if ONNX_LOADER_AVAILABLE:
-            sessions, tokenizer, config = model_loader.load_model(cache_key)
-            engines_cache[cache_key] = ONNXInferenceEngine(sessions, tokenizer, config)
+            sessions, tokenizer, config = model_loader.load_model(model_quant_key)
+            engines_cache[model_quant_key] = ONNXInferenceEngine(sessions, tokenizer, config)
         else:
             # Mock engine for testing
-            engines_cache[cache_key] = ONNXInferenceEngine()
-    return engines_cache[cache_key]
+            engines_cache[model_quant_key] = ONNXInferenceEngine()
+    return engines_cache[model_quant_key]
 
 
 # Generate text using ONNX inference engine

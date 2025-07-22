@@ -154,14 +154,25 @@ class TestONNXInferenceEngine:
     
     def test_generate_text_with_images_unsupported(self):
         """Test that providing images to non-vision model raises error."""
-        # Create non-vision config - use Gemma-3n which is text-only
-        non_vision_config = REFERENCE_MODELS[ReferenceModel.GEMMA_3N_E2B].config
+        # Create non-vision config manually
+        from apps.shared.model_types import ONNXModelConfig
+        non_vision_config = ONNXModelConfig(
+            num_layers=24,
+            num_heads=16,
+            head_dim=64,
+            has_vision=False,
+            position_dims=1,
+            components={'model': 'model{suffix}.onnx'}
+        )
         
         # Create a mock single model
         mock_single_model = Mock()
         mock_input = Mock()
         mock_input.name = 'input_ids'
         mock_single_model.get_inputs.return_value = [mock_input]
+        
+        # Setup tokenizer mock properly
+        self.mock_tokenizer.return_value = {'input_ids': np.array([[1, 2, 3]])}
         
         engine = ONNXInferenceEngine(
             {'model': mock_single_model},  # Single model architecture
@@ -208,16 +219,24 @@ class TestModelConfigs:
             assert hasattr(config, 'components')
             
             # Check components - different architectures have different components
-            if 'granite' in ref_model.value or 'gemma' in ref_model.value:
-                # Single model architecture
+            if 'granite' in ref_model.value:
+                # Granite single model architecture
                 assert 'model' in config.components
+            elif 'gemma' in ref_model.value:
+                # Gemma multi-modal architecture
+                assert 'decoder' in config.components
+                assert 'embed_tokens' in config.components
+            elif 'phi' in ref_model.value:
+                # Phi-3.5 vision architecture
+                assert 'prepare_inputs_embeds' in config.components
+                assert 'decoder' in config.components
             else:
-                # Multi-component architecture
+                # Multi-component architecture (Qwen2-VL)
                 assert 'embed' in config.components
                 assert 'decoder' in config.components
                 
             if config.has_vision:
-                assert 'vision' in config.components
+                assert 'vision_encoder' in config.components or 'vision' in config.components
 
 
 @pytest.mark.integration
