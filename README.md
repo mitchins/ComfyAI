@@ -1,293 +1,143 @@
-# **ComfyAI – LLM-Powered Vision & Text Query Node for ComfyUI**  
+# **ComfyAI – LLM-Powered Vision & Text Query Nodes for ComfyUI**  
 
-🚀 **ComfyAI** is an advanced **LLM-powered query node** for **ComfyUI**, enabling both **text-based and vision-based inference** using multimodal models like **Qwen-VL** and **Llava**.  
+🚀 **ComfyAI** brings **multimodal AI capabilities** directly into your **ComfyUI workflows** with powerful custom nodes for text and vision inference using models like **Qwen-VL**, **Llava**, and **face recognition**.
 
-This project exposes a lightweight HTTP API for text or vision models and can use any OpenAI-compatible endpoint, including the optional ONNX server. The ComfyUI node is fully decoupled from the LLM and communicates purely over HTTP.
-
----
-
-## Quick Start
-
-**Node usage**
-
-1. Copy the `nodes/` folder into `custom_nodes/ComfyAI` inside your ComfyUI installation (or clone this repo there).
-2. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-**Server usage**
-
-1. Install server dependencies:
-
-   ```bash
-   pip install -r apps/onnx_chat/requirements.txt
-   pip install -r apps/face_api/requirements.txt
-   ```
-2. Run the lightweight chat server:
-
-   ```bash
-   python -m apps.onnx_chat.main  # or: uvicorn apps.onnx_chat.main:app
-   ```
-3. Start the face API with a preset:
-
-   ```bash
-   PRESET=photo|anime|cg uvicorn apps.face_api.main:app
-   ```
-
-More details are available in the sections below.
+Transform your ComfyUI experience with intelligent image analysis, face comparison, and conditional workflow control - all through simple, drag-and-drop nodes.
 
 ---
 
-## **✨ Features**
+## ✨ **Custom Nodes**
 
-ComfyAI ships with a set of custom nodes for ComfyUI:
+### **🧠 AI Query Nodes**
+- **VLLMTextQuery** – Send text prompts to any LLM endpoint
+- **VLLMImageQuery** – Analyze single images with vision-language models  
+- **VLLMDualImageQuery** – Compare and analyze two images simultaneously
 
-- **VLLMTextQuery**, **VLLMImageQuery** and **VLLMDualImageQuery** – send text, one image or two images to your favourite LLM endpoint.
-- **CompareFacesNode** – compare two face images using the optional face API.
-- **ConditionalSaveImage** – only save results when a connected boolean evaluates to `True`.
+### **👤 Face Analysis Nodes**
+- **CompareFacesNode** – High-accuracy face comparison and similarity scoring
+- Supports real photos, anime, and CG character styles
 
-All nodes communicate with any OpenAI‑compatible HTTP endpoint. Heavy model inference can run remotely, including via the lightweight ONNX server that comes with this repository.
-See [nodes/README.md](nodes/README.md) for a full list of inputs and outputs.
+### **🎯 Workflow Control Nodes**  
+- **ConditionalSaveImage** – Smart image saving based on boolean conditions
+- Perfect for quality filtering and automated workflows
 
----
-
-## **📌 Supported Models**  
-
-Currently supported models:  
-- **Qwen-2.5VL** (`qwen2_5_vl`) – Strong multimodal (text+vision) model.  
-- **Llava** (`llava`) – Vision-language AI for image understanding.  
-
-✅ **Recommended Model:**  
-- **Llava-7B (bnb4) from Unsloth** – **Tested & performs exceptionally well!**  
-- **Qwen2.5-VL-3B-Instruct (bnb4)** – Good, but **Llava-7B handles instructions significantly better.**  
-- Supports **BitsAndBytes 4bit/8bit quantization** for efficiency.  
-
-🚀 **Planned Support:**  
-- **mLLaMA & Pixtral** – Requires additional integration (not yet implemented).  
+**All nodes work with any OpenAI-compatible API endpoint** – use local models, cloud services, or the included lightweight ONNX server.
 
 ---
 
-## **📥 Installation**  
+## 🚀 **Quick Start**
 
-### **🔧 Prerequisites**  
-Ensure you have the following installed:  
-- **Python 3.10+**  
-- **PyTorch with CUDA** (`torch + torchvision`)  
-- **Hugging Face Transformers** (`transformers`)  
-- **ComfyUI** (installed separately)  
-
-### **📌 Install ComfyAI (from your ComfyUI installation folder)**
-
-Clone this repo inside ComfyUI's `custom_nodes/` folder (or copy just the
-`nodes/` subfolder) and install the package:
-
+### **Install Nodes**
 ```bash
-cd custom_nodes
+cd your-comfyui-folder/custom_nodes
 git clone https://github.com/mitchins/ComfyAI.git
-
-# The plugin nodes live in the `nodes/` directory. You can clone the
-# whole repository (as above) or simply copy that folder into a
-# subdirectory, e.g. `custom_nodes/ComfyAI/`.
-# Only the contents of `nodes/` are required for the ComfyUI plugin.
-
-# Install node dependencies
-pip install -r requirements.txt
-
-# Optional server dependencies
-pip install -r apps/onnx_chat/requirements.txt
-pip install -r apps/face_api/requirements.txt
+pip install -r ComfyAI/requirements.txt
 ```
 
----
+### **Basic Usage**
+1. **Restart ComfyUI** to load the new nodes
+2. **Add nodes** from the ComfyAI category in your workflow
+3. **Configure endpoint** (OpenAI API, local server, or included ONNX server)
+4. **Connect your images/text** and start creating!
 
-## **🚀 Usage**  
-
-### **📌 Using the Query Node in ComfyUI**  
-
-1. **Start ComfyUI** (ensure it’s installed and running).  
-2. **Load the custom node from ComfyAI**.  
-3. **Connect image/text inputs** and send queries.  
-4. **Requests are sent to your configured API endpoint**.
-
----
-
-### **📌 Use Case 1 - Single Image → Text Output**  
-
-To **describe an image**, pass it as `sample`. The `reference` input is only used for comparisons.
-If you provide **both** `sample` and `reference`, the node will send **two images at once** for vision models that support comparisons.
-
-**Example Workflow:**  
-![Single Image Example](Example01.png)  
-
-📝 **Example Prompt:**  
-> *"You are an interface for stable diffusion. Provide a prompt to generate an image like this one."*  
-
----
-
-### **📌 Use Case 2 - Comparing Two Images (Boolean Output)**  
-
-The **Vision LLM** can compare **two images** and **output a True/False result**.  
-
-**Example Workflow:**  
-![Image Comparison Example](Example02.png)  
-
-📝 **Example Prompt:**  
-> *"Answer yes or no, are the following two images similarly themed?"*  
-
-💡 **Tip:** This library includes a **`ConditionalSaveImage` node**, which saves images **only when a connected boolean input is `True`**.
-
----
-
-### **📌 Use Case 3 - AI-Generated Prompt from an Image**  
-
-The **Vision LLM** can generate text prompts **based on an input image**, making it useful for **Stable Diffusion automation**.  
-
-**Example Workflow:**  
-![AI Generating Prompts](Example03.png)  
-
-📝 **Example Prompt:**  
-> *"Describe this image as a Stable Diffusion prompt."*  
-
-**ComfyAI automatically writes a prompt**, which is then used to generate a similar image!  
-
----
-
-### **📌 Use Case 4 - Combined Image Comparison + AI-Generated Prompt**  
-
-This setup **first compares two images for similarity**, then **generates a Stable Diffusion prompt to recreate it**.  
-
-**Example Workflow:**  
-![AI Prompting AI](Example04.png)  
-
-📝 **Example Prompt:**  
-> *"Given the image provided, output the prompt for a Stable Diffusion image service to create one exactly like it. Ensure the style is the same. Be direct but ensure details are well-defined."*  
-
-💡 **This is useful for**:  
-- **Style transfer**  
-- **Recreating an image in a different medium**  
-- **Refining AI-generated art iteratively**  
-
----
-
-## **🛠️ Configuration**  
-
-### **🔍 Changing the Model**  
-To use a different model, **select it inside the node in your ComfyUI workflow**.  
-
-💡 **Example:**  
-If you want to use a **Llava-7B model**, make sure it’s downloaded:  
-
+### **Optional: Local ONNX Server**
+For privacy and offline use, run the included lightweight server:
 ```bash
-huggingface-cli download unsloth/llava-1.5-7b-hf-bnb-4bit --all
+# Install server dependencies
+pip install -r ComfyAI/apps/onnx_chat/requirements.txt
+pip install -r ComfyAI/apps/face_api/requirements.txt
+
+# Start servers
+python -m ComfyAI.apps.onnx_chat.main    # Chat/vision models
+PRESET=photo uvicorn ComfyAI.apps.face_api.main:app  # Face comparison
 ```
-
-Then, **select it inside the ComfyUI node settings**.
-
-### 🛰️ Running the optional ONNX server
-Use the built-in script if you want a lightweight OpenAI compatible endpoint.
-Install the server requirements and run:
-
-```bash
-pip install -r apps/onnx_chat/requirements.txt
-python -m apps.onnx_chat.main  # or: uvicorn apps.onnx_chat.main:app
-```
-
-The client node accepts any OpenAI compatible endpoint URL, so you can point it
-to this server, Ollama, or the official OpenAI API.
-
-See [apps/README.md](apps/README.md) for details on the bundled servers.
 
 ---
 
-## Installation & Runners
+## 🎯 **Key Features**
 
-Install the base requirements:
+### **🔗 Universal Compatibility**
+- **Any OpenAI-compatible endpoint** (OpenAI, Anthropic, local servers)
+- **Flexible model support** with automatic format detection
+- **HTTP-based communication** for scalable, distributed inference
 
-```bash
-pip install -r requirements.txt
-```
+### **🎨 Vision-Language Intelligence**  
+- **Image understanding** with natural language queries
+- **Multi-image comparison** and analysis capabilities
+- **Context-aware responses** based on visual content
 
-Optional servers have their own requirements files:
+### **👁️ Advanced Face Recognition**
+- **High-precision face matching** across different styles
+- **Specialized presets** for photos, anime, and CG characters  
+- **Similarity scoring** for automated face-based workflows
 
-```bash
-pip install -r apps/onnx_chat/requirements.txt
-pip install -r apps/face_api/requirements.txt
-```
-
-### Unified API server with cache manager
-
-Run all endpoints together:
-
-```bash
-uvicorn comfyai.main:app --host 0.0.0.0 --port 8000
-```
-
-This exposes the chat, face and manage routes. The web UI is served at `/manage/ui/`.
-
-
-
-### Environment Variables
-
-- `COMFYAI_ENDPOINT` – base URL for API calls (default: `https://api.openai.com/v1`)
-
-See [apps/face_api/README.md](apps/face_api/README.md) and [apps/onnx_chat/README.md](apps/onnx_chat/README.md) for all server options. Configuration values resolve in this order: **environment variables → CLI flags → presets**.
-
-Zero‑config preset example:
-
-```bash
-PRESET=photo uvicorn apps.face_api.main:app
-```
-Available presets: `photo` (default), `anime` and `cg`. Use `PRESET=<name>` when running uvicorn or `--preset <name>` with `python -m apps.face_api.main`.
-
-Custom models:
-
-```bash
-DETECTOR_MODEL=deepghs/real_face_detection \
-DETECTOR_FILE=face_detect_v1.4_s/model.onnx \
-EMBEDDER_MODEL_PATH=openailab/onnx-arcface-resnet100-ms1m \
-EMBEDDER_FILE=model.onnx \
-uvicorn apps.face_api.main:app
-```
-
-Edit `apps/face_api/presets.py` to add or remove presets.
-
-### Testing
-
-```bash
-pip install -r requirements-dev.txt
-pytest tests -q
-pytest integration_tests -q
-```
-
-Integration tests expect a clone of the ComfyUI project under
-`ComfyUI_repo/` (or otherwise available on `PYTHONPATH`). The CI workflow
-runs both test suites sequentially. ONNX/Server tests are auto-skipped
-unless you've installed the `onnx` extra.
+### **⚡ Performance & Privacy**
+- **Lightweight nodes** with minimal ComfyUI impact
+- **Optional local inference** with included ONNX server
+- **Efficient model management** with curated model catalog
+- **GPU acceleration support** for fast inference
 
 ---
 
+## 📖 **Documentation**
 
-## **📅 Roadmap**  
-
-🚀 **Planned improvements:**  
-- ✅ **Expanding model support** (mLLaMA, Pixtral, ONNX models like Phi-3.5 Vision).  
-- ✅ **Adding API-based inference** (Ollama, OpenAI endpoints).  
-- ✅ **Performance optimizations** to further reduce memory usage.  
+- **[Node Reference](nodes/README.md)** – Complete guide to all available nodes
+- **[Server Setup](apps/README.md)** – Detailed server installation and configuration  
+- **[Model Management](docs/UNIFIED_MODEL_MANAGEMENT.md)** – Managing local ONNX models
 
 ---
 
-## **📜 License**  
+## 🛠️ **Supported Models**
 
-This project is licensed under the **AGPL-3.0 license**. See `LICENSE` for details.  
+### **Vision-Language Models**
+- **Qwen2-VL** (2B parameters) – Strong multimodal understanding
+- **Gemma-3n** – Advanced multimodal chat capabilities  
+- **Phi-3.5-Vision** (4B parameters) – Efficient vision-text processing
+
+### **Face Recognition Models**
+- **ArcFace ResNet100** – High-accuracy face embedding
+- **CLIP ViT** – Versatile vision model for anime/CG styles
+- **InsightFace Detection** – Multiple detection model versions
+
+All models support **multiple quantization levels** (FP16, Q4, INT8) for optimal performance vs. accuracy trade-offs.
 
 ---
 
-## **🚀 Stay Updated**  
+## 🌟 **Why ComfyAI?**
 
-⭐ **Star this repo** if you find it useful!  
-📣 **Issues, feedback, and contributions are welcome.**  
+### **🎯 Built for ComfyUI**
+- **Native integration** with ComfyUI's node-based workflow system
+- **Familiar interface** using standard ComfyUI patterns and conventions
+- **Seamless workflows** connecting AI analysis with image processing
 
-Happy coding! 🎨🤖  
+### **🔒 Privacy-First**
+- **Local inference option** with included ONNX server
+- **No cloud dependency** required for core functionality  
+- **Your data stays local** when using the optional server components
 
+### **⚡ Production Ready**
+- **Comprehensive testing** with full test coverage
+- **Error handling** and graceful degradation
+- **Performance optimized** for real-world ComfyUI workflows
+- **Active development** with regular updates and improvements
+
+---
+
+## 📦 **What's Included**
+
+### **ComfyUI Nodes** (`nodes/`)
+Ready-to-use custom nodes for your ComfyUI installation
+
+### **Optional Server Stack** (`apps/`)
+- **ONNX Chat Server** – Local vision-language model inference
+- **Face API Server** – High-performance face comparison service
+- **Unified Model Manager** – Web-based interface for managing local models
+
+### **Documentation & Examples**
+- Complete setup guides and API documentation
+- Example workflows and use cases
+- Troubleshooting and optimization tips
+
+---
+
+**Get started today and bring the power of modern AI directly into your ComfyUI workflows!** 🚀

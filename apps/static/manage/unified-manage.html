@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified ONNX Model Management</title>
+    <!-- Materialize CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        .model-section {
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        
+        .model-header {
+            padding: 15px;
+            background-color: #f5f5f5;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .model-header:hover {
+            background-color: #eeeeee;
+        }
+        
+        .model-content {
+            padding: 15px;
+            display: none;
+        }
+        
+        .model-content.expanded {
+            display: block;
+        }
+        
+        .server-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: white;
+            margin-right: 10px;
+        }
+        
+        .server-chat { background-color: #2196f3; }
+        .server-face { background-color: #4caf50; }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .status-downloaded { background-color: #4caf50; }
+        .status-partial { background-color: #ff9800; }
+        .status-partial-files { background-color: #ff9800; }
+        .status-not-downloaded { background-color: #f44336; }
+        .status-error { background-color: #9c27b0; }
+        .status-quants { background-color: #2196f3; }
+        
+        .quantization-section {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        
+        .file-list {
+            margin-top: 10px;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        
+        .file-downloaded { color: #4caf50; }
+        .file-not-downloaded { color: #f44336; }
+        
+        .expand-icon {
+            transition: transform 0.3s;
+        }
+        
+        .expand-icon.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .loading {
+            display: none;
+            margin: 20px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h4>Pre-configured ONNX Models</h4>
+        <p>Download and manage curated models for Chat and Face servers</p>
+        
+        <div class="loading" id="loading">
+            <div class="preloader-wrapper active">
+                <div class="spinner-layer spinner-blue-only">
+                    <div class="circle-clipper left">
+                        <div class="circle"></div>
+                    </div>
+                    <div class="gap-patch">
+                        <div class="circle"></div>
+                    </div>
+                    <div class="circle-clipper right">
+                        <div class="circle"></div>
+                    </div>
+                </div>
+            </div>
+            <p>Loading models...</p>
+        </div>
+        
+        <div id="models-container"></div>
+        
+        <div class="row">
+            <div class="col s12">
+                <button class="btn waves-effect waves-light" onclick="refreshModels()">
+                    <i class="material-icons left">refresh</i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Materialize JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script src="unified-manage.js"></script>
+</body>
+</html>

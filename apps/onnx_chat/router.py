@@ -52,7 +52,8 @@ async def chat_completions(request: Request):
             text, 
             req.model or (MODEL_PATH or ""), 
             req.max_tokens or 100, 
-            req.images
+            req.images,
+            req.audio
         )
         
         return {

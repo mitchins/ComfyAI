@@ -11,8 +11,12 @@ sys.path.insert(0, str(ROOT / "nodes"))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Integration tests need REAL dependencies, not stubs
-# Do NOT import tests.conftest as it stubs onnxruntime
+# Integration tests need REAL dependencies - remove any stubs that may have been loaded
+stub_modules = ["torch", "onnxruntime", "uvicorn", "onnx"]
+for mod in stub_modules:
+    if mod in sys.modules and not hasattr(sys.modules[mod], '__file__'):
+        # This is a stub module (no __file__ attribute), remove it
+        del sys.modules[mod]
 
 @pytest.fixture
 def run_graph():

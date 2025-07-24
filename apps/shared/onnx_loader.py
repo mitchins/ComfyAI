@@ -190,8 +190,29 @@ class ONNXModelLoader:
         # Download auxiliary files
         self.download_auxiliary_files(repo_id)
         
-        # Load tokenizer
+        # Load tokenizer and config for dynamic architecture parameters
         tokenizer = AutoTokenizer.from_pretrained(repo_id, use_fast=True, trust_remote_code=True)
+        
+        # Get actual architecture parameters from model config (like test_gemma3n.py)
+        from transformers import AutoConfig
+        try:
+            hf_config = AutoConfig.from_pretrained(repo_id, trust_remote_code=True)
+            # Update config with actual model parameters
+            if hasattr(hf_config, 'text_config'):
+                # Multi-modal models have text_config
+                text_config = hf_config.text_config
+                config.num_layers = getattr(text_config, 'num_hidden_layers', config.num_layers)
+                config.num_heads = getattr(text_config, 'num_key_value_heads', getattr(text_config, 'num_attention_heads', config.num_heads))
+                config.head_dim = getattr(text_config, 'head_dim', config.head_dim)
+            else:
+                # Single-modal models have config directly
+                config.num_layers = getattr(hf_config, 'num_hidden_layers', config.num_layers)
+                config.num_heads = getattr(hf_config, 'num_key_value_heads', getattr(hf_config, 'num_attention_heads', config.num_heads))
+                config.head_dim = getattr(hf_config, 'head_dim', config.head_dim)
+            
+            logger.info(f"Updated config from model: layers={config.num_layers}, heads={config.num_heads}, head_dim={config.head_dim}")
+        except Exception as e:
+            logger.warning(f"Could not load dynamic config, using static config: {e}")
         
         # Download components using curated paths
         component_paths = self.download_curated_components(repo_id, component_config)
@@ -199,16 +220,10 @@ class ONNXModelLoader:
         # Load ONNX sessions
         sessions = {}
         for component_name, path in component_paths.items():
-            print(f"DEBUG CURATED: About to create InferenceSession for {component_name}")
-            print(f"DEBUG CURATED: ort type: {type(ort)}")
-            print(f"DEBUG CURATED: ort: {ort}")
-            print(f"DEBUG CURATED: hasattr InferenceSession: {hasattr(ort, 'InferenceSession')}")
-            print(ort)
-            if hasattr(ort, 'InferenceSession'):
-                print(f"DEBUG CURATED: InferenceSession: {ort.InferenceSession}")
-            else:
-                print(f"DEBUG CURATED: ort attributes: {[attr for attr in dir(ort) if not attr.startswith('_')]}")
-            sessions[component_name] = ort.InferenceSession(path)
+            # Use CPU-only for tests to avoid CoreML dynamic shape issues
+            # In production, you might want to use ['CoreMLExecutionProvider', 'CPUExecutionProvider']
+            providers = ['CPUExecutionProvider']
+            sessions[component_name] = ort.InferenceSession(path, providers=providers)
             logger.info(f"Loaded {component_name} from {path}")
         
         # Cache everything
@@ -235,16 +250,26 @@ class ONNXModelLoader:
             try:
                 path = hf_hub_download(repo_id=repo_id, filename=filename)
                 
-                # Also download companion .onnx_data file if it exists
+                # Also download companion .onnx_data files (numbered and non-numbered)
                 if filename.endswith('.onnx'):
+                    # First try non-numbered data file
                     data_filename = filename + '_data'
                     try:
                         data_path = hf_hub_download(repo_id=repo_id, filename=data_filename)
                         logger.info(f"Downloaded companion data file: {data_filename} -> {data_path}")
-                    except Exception as e:
-                        # .onnx_data file doesn't exist, which is fine for quantized models
-                        logger.debug(f"No companion data file found for {filename}: {e}")
-                        pass
+                    except Exception:
+                        logger.debug(f"No base data file found for {filename}")
+                    
+                    # Then try numbered data files (e.g., _data_0, _data_1, etc.)
+                    # Some models start at _data_1 instead of _data_0
+                    for data_file_index in range(10):  # Try indices 0-9
+                        data_filename = f"{filename}_data_{data_file_index}"
+                        try:
+                            data_path = hf_hub_download(repo_id=repo_id, filename=data_filename)
+                            logger.info(f"Downloaded companion data file: {data_filename} -> {data_path}")
+                        except Exception:
+                            # This numbered data file doesn't exist, continue to next
+                            pass
                 
                 component_paths[component_name] = path
                 logger.info(f"Downloaded {component_name}: {filename}")
@@ -295,7 +320,9 @@ class ONNXModelLoader:
         # Load ONNX sessions
         sessions = {}
         for component_name, path in component_paths.items():
-            sessions[component_name] = ort.InferenceSession(path)
+            # Use CPU-only for tests to avoid CoreML dynamic shape issues
+            providers = ['CPUExecutionProvider']
+            sessions[component_name] = ort.InferenceSession(path, providers=providers)
             logger.info(f"Loaded {component_name} from {path}")
         
         # Cache everything
@@ -350,16 +377,18 @@ class ONNXInferenceEngine:
         self.vision_model = sessions.get('vision') or sessions.get('vision_encoder')  # Optional
         self.audio_model = sessions.get('audio') or sessions.get('audio_encoder')   # Optional
     
-    def generate_text(self, text: str, max_tokens: int = 100, images: Optional[List[str]] = None) -> str:
+    def generate_text(self, text: str, max_tokens: int = 100, images: Optional[List[str]] = None, audio: Optional[List[str]] = None) -> str:
         """Generate text using the ONNX model."""
         if images and not self.config.has_vision:
             raise ValueError("Images provided but model doesn't support vision")
+        if audio and not self.audio_model:
+            raise ValueError("Audio provided but model doesn't support audio")
         
         # Handle single model vs multi-component models
         if self.model is not None:
             return self._generate_single_model(text, max_tokens, images)
         else:
-            return self._generate_multi_component(text, max_tokens, images)
+            return self._generate_multi_component(text, max_tokens, images, audio)
     
     def _generate_single_model(self, text: str, max_tokens: int, images: Optional[List[str]]) -> str:
         """Generate text using single ONNX model (like Granite)."""
@@ -390,8 +419,8 @@ class ONNXInferenceEngine:
         
         return self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
     
-    def _generate_multi_component(self, text: str, max_tokens: int, images: Optional[List[str]]) -> str:
-        """Generate text using multi-component ONNX model (like Qwen2-VL)."""
+    def _generate_multi_component(self, text: str, max_tokens: int, images: Optional[List[str]] = None, audio: Optional[List[str]] = None) -> str:
+        """Generate text using multi-component ONNX model (like Qwen2-VL, Gemma3n)."""
         # Tokenize input
         inputs = self.tokenizer(text, return_tensors='np')
         input_ids = inputs['input_ids']
@@ -402,6 +431,13 @@ class ONNXInferenceEngine:
             # Standard embedding model (Qwen2-VL, Gemma)
             embed_outputs = self.embed_model.run(None, {'input_ids': input_ids})
             inputs_embeds = embed_outputs[0]
+            
+            # Gemma3n models return per_layer_inputs as second output
+            per_layer_inputs = embed_outputs[1] if len(embed_outputs) > 1 else None
+            
+            # Handle Gemma3n multimodal feature injection
+            if self.vision_model and self.audio_model and ("gemma" in self.tokenizer.name_or_path.lower()):
+                inputs_embeds = self._inject_gemma3n_features(inputs_embeds, input_ids, images, audio)
         elif self.prepare_inputs_embeds_model is not None:
             # Phi-3.5 style prepare_inputs_embeds - requires image_features input
             # For text-only inference, provide empty image_features indicating no images
@@ -422,9 +458,16 @@ class ONNXInferenceEngine:
         
         # Prepare initial decoder inputs
         onnx_inputs = {
-            'inputs_embeds': inputs_embeds,
-            'attention_mask': attention_mask
+            'inputs_embeds': inputs_embeds
         }
+        
+        # Add attention_mask only if the decoder expects it
+        if 'attention_mask' in self.decoder_input_names:
+            onnx_inputs['attention_mask'] = attention_mask
+        
+        # Add per_layer_inputs if available (Gemma3n models)
+        if per_layer_inputs is not None:
+            onnx_inputs['per_layer_inputs'] = per_layer_inputs
         
         # Add position_ids if needed
         if 'position_ids' in self.decoder_input_names:
@@ -468,7 +511,10 @@ class ONNXInferenceEngine:
             
             # Update inputs for next iteration
             onnx_inputs['inputs_embeds'] = next_embed[0]
-            onnx_inputs['attention_mask'] = np.ones((1, generated_ids.shape[1]), dtype=np.int64)
+            
+            # Update attention_mask only if the decoder expects it
+            if 'attention_mask' in self.decoder_input_names:
+                onnx_inputs['attention_mask'] = np.ones((1, generated_ids.shape[1]), dtype=np.int64)
             
             # Update position_ids
             if 'position_ids' in self.decoder_input_names:
@@ -485,3 +531,28 @@ class ONNXInferenceEngine:
                     output_idx += 2
         
         return self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+    
+    def _inject_gemma3n_features(self, inputs_embeds: np.ndarray, input_ids: np.ndarray, images: Optional[List[str]], audio: Optional[List[str]]) -> np.ndarray:
+        """Inject image and audio features into embeddings for Gemma3n models."""
+        # Get special token IDs from tokenizer config
+        try:
+            image_token_id = getattr(self.tokenizer, 'image_token_id', None)
+            audio_token_id = getattr(self.tokenizer, 'audio_token_id', None)
+        except:
+            # Fallback values from test_gemma3n.py
+            image_token_id = 256012  # Default from Gemma3n config
+            audio_token_id = 256013  # Default from Gemma3n config
+        
+        # Process vision features if images provided
+        if images and self.vision_model and image_token_id:
+            # For now, skip actual image processing - would need processor integration
+            # This is a placeholder for when we have proper multimodal input processing
+            pass
+        
+        # Process audio features if audio provided  
+        if audio and self.audio_model and audio_token_id:
+            # For now, skip actual audio processing - would need processor integration
+            # This is a placeholder for when we have proper multimodal input processing
+            pass
+            
+        return inputs_embeds

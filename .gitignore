@@ -173,3 +173,5 @@ ComfyUI_repo/
 logs/
 **/.DS_Store
 **/*.onnx
+onnx/embed_tokens_quantized.onnx_data
+onnx/embed_tokens_quantized.onnx_data_1

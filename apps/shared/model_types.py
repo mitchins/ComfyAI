@@ -130,18 +130,24 @@ MODEL_QUANT_CONFIGS = {
         "vision_encoder":  "onnx/vision_encoder_uint8.onnx",
     },
 
-    # Gemma-3n-E2B-it-ONNX only has FP32 & FP16 universally
-    "Gemma-3n-E2B-it-ONNX/FP32": {
-        "audio_encoder":   "onnx/audio_encoder.onnx",
-        "decoder":         "onnx/decoder_model_merged.onnx",
-        "embed_tokens":    "onnx/embed_tokens.onnx",
-        "vision_encoder":  "onnx/vision_encoder.onnx",
+    # Gemma-3n-E2B-it-ONNX configurations (matching test_gemma3n.py)
+    "Gemma-3n-E2B-it-ONNX/Q4_MIXED": {
+        "audio_encoder":   "onnx/audio_encoder_q4.onnx",
+        "decoder":         "onnx/decoder_model_merged_q4.onnx",
+        "embed_tokens":    "onnx/embed_tokens_quantized.onnx",
+        "vision_encoder":  "onnx/vision_encoder_quantized.onnx",
     },
     "Gemma-3n-E2B-it-ONNX/FP16": {
         "audio_encoder":   "onnx/audio_encoder_fp16.onnx",
         "decoder":         "onnx/decoder_model_merged_fp16.onnx",
         "embed_tokens":    "onnx/embed_tokens_fp16.onnx",
         "vision_encoder":  "onnx/vision_encoder_fp16.onnx",
+    },
+    "Gemma-3n-E2B-it-ONNX/FP32": {
+        "audio_encoder":   "onnx/audio_encoder.onnx",
+        "decoder":         "onnx/decoder_model_merged.onnx",
+        "embed_tokens":    "onnx/embed_tokens.onnx",
+        "vision_encoder":  "onnx/vision_encoder.onnx",
     },
 
     # Phi-3.5-vision-instruct only Q4 & Q4_F16
@@ -211,7 +217,7 @@ REFERENCE_MODELS = {
     ReferenceModel.GEMMA_3N_E2B: ModelSpec(
         repo_id="onnx-community/gemma-3n-E2B-it-ONNX",
         config=ONNXModelConfig(
-            num_layers=24,
+            num_layers=30,  # Fixed: Gemma3n has 30 layers, not 24
             num_heads=16,
             head_dim=64,
             has_vision=True,  # Updated: Gemma-3n has vision + audio
@@ -224,8 +230,8 @@ REFERENCE_MODELS = {
                 'vision_encoder': 'vision_encoder{suffix}.onnx',
             }
         ),
-        supported_quants=[Quantization.FULL, Quantization.FP16],  # Only FP32 and FP16
-        default_quant=Quantization.FP16,  # Use FP16 as default (smaller)
+        supported_quants=[Quantization.Q4, Quantization.QUANTIZED, Quantization.FP16, Quantization.FULL],
+        default_quant=Quantization.Q4,
         description="2B multimodal model with vision, text, and audio"
     ),
     
@@ -264,7 +270,7 @@ def get_available_model_quants() -> List[str]:
 def get_smallest_quant_for_model(model_name: str) -> Optional[str]:
     """Get the smallest quantization available for a given model."""
     # Define quant order from smallest to largest
-    quant_priority = ["UINT8", "INT8", "Q4", "Q4_F16", "BNB4", "QUANTIZED", "FP16", "FP32"]
+    quant_priority = ["UINT8", "INT8", "Q4", "Q4_MIXED", "Q4_F16", "BNB4", "QUANTIZED", "FP16", "FP32"]
     
     available_configs = [key for key in MODEL_QUANT_CONFIGS.keys() if key.startswith(model_name + "/")]
     

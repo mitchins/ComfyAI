@@ -71,6 +71,7 @@ class ChatRequest(BaseModel):
     model: str
     messages: List[Dict[str, Any]]
     images: List[str] | None = None  # base64-encoded images
+    audio: List[str] | None = None   # base64-encoded audio or URLs
     max_tokens: int | None = None
 
 
@@ -149,9 +150,9 @@ async def get_inference_engine(model_name: str) -> ONNXInferenceEngine:
 
 
 # Generate text using ONNX inference engine
-async def generate_text(text: str, model_name: str, max_tokens: int = 100, images: List[str] | None = None) -> str:
+async def generate_text(text: str, model_name: str, max_tokens: int = 100, images: List[str] | None = None, audio: List[str] | None = None) -> str:
     engine = await get_inference_engine(model_name)
-    return engine.generate_text(text, max_tokens, images)
+    return engine.generate_text(text, max_tokens, images, audio)
 
 
 # Legacy functions for backward compatibility with old tests
@@ -227,7 +228,7 @@ async def chat(request: Request):
                     text += part.get("text", "")
         else:
             text = str(content)
-    result = await generate_text(text, req.model or (MODEL_PATH or ""), req.max_tokens or 100, req.images)
+    result = await generate_text(text, req.model or (MODEL_PATH or ""), req.max_tokens or 100, req.images, req.audio)
     return {
         "id": "cmpl-001",
         "object": "chat.completion",
