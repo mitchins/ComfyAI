@@ -202,15 +202,23 @@ class ONNXModelLoader:
                 # Multi-modal models have text_config
                 text_config = hf_config.text_config
                 config.num_layers = getattr(text_config, 'num_hidden_layers', config.num_layers)
-                config.num_heads = getattr(text_config, 'num_key_value_heads', getattr(text_config, 'num_attention_heads', config.num_heads))
-                config.head_dim = getattr(text_config, 'head_dim', config.head_dim)
+                config.num_heads = getattr(text_config, 'num_attention_heads', config.num_heads)
+                config.num_kv_heads = getattr(text_config, 'num_key_value_heads', config.num_kv_heads)
+                # Calculate head_dim from hidden_size / num_attention_heads if available
+                hidden_size = getattr(text_config, 'hidden_size', None)
+                if hidden_size and config.num_heads:
+                    config.head_dim = hidden_size // config.num_heads
             else:
                 # Single-modal models have config directly
                 config.num_layers = getattr(hf_config, 'num_hidden_layers', config.num_layers)
-                config.num_heads = getattr(hf_config, 'num_key_value_heads', getattr(hf_config, 'num_attention_heads', config.num_heads))
-                config.head_dim = getattr(hf_config, 'head_dim', config.head_dim)
+                config.num_heads = getattr(hf_config, 'num_attention_heads', config.num_heads)
+                config.num_kv_heads = getattr(hf_config, 'num_key_value_heads', config.num_kv_heads)
+                # Calculate head_dim from hidden_size / num_attention_heads if available
+                hidden_size = getattr(hf_config, 'hidden_size', None)
+                if hidden_size and config.num_heads:
+                    config.head_dim = hidden_size // config.num_heads
             
-            logger.info(f"Updated config from model: layers={config.num_layers}, heads={config.num_heads}, head_dim={config.head_dim}")
+            logger.info(f"Updated config from model: layers={config.num_layers}, heads={config.num_heads}, kv_heads={config.num_kv_heads}, head_dim={config.head_dim}")
         except Exception as e:
             logger.warning(f"Could not load dynamic config, using static config: {e}")
         
@@ -424,17 +432,20 @@ class ONNXInferenceEngine:
         # Tokenize input
         inputs = self.tokenizer(text, return_tensors='np')
         input_ids = inputs['input_ids']
-        attention_mask = inputs.get('attention_mask', np.ones_like(input_ids))
-        
+        attention_mask_2d = inputs.get('attention_mask', np.ones_like(input_ids))
+
+        # Initialize per_layer_inputs to None by default
+        per_layer_inputs = None
+
         # Get embeddings based on architecture
         if self.embed_model is not None:
             # Standard embedding model (Qwen2-VL, Gemma)
             embed_outputs = self.embed_model.run(None, {'input_ids': input_ids})
             inputs_embeds = embed_outputs[0]
-            
+
             # Gemma3n models return per_layer_inputs as second output
             per_layer_inputs = embed_outputs[1] if len(embed_outputs) > 1 else None
-            
+
             # Handle Gemma3n multimodal feature injection
             if self.vision_model and self.audio_model and ("gemma" in self.tokenizer.name_or_path.lower()):
                 inputs_embeds = self._inject_gemma3n_features(inputs_embeds, input_ids, images, audio)
@@ -448,78 +459,85 @@ class ONNXInferenceEngine:
             }
             embed_outputs = self.prepare_inputs_embeds_model.run(None, embed_inputs)
             inputs_embeds = embed_outputs[0]
+            # per_layer_inputs remains None for Phi-3.5
         else:
             raise ValueError("No embedding model available for multi-component inference")
-        
+
         # Initialize sequence tracking
         batch_size = 1
         seq_length = input_ids.shape[1]
         generated_ids = input_ids.copy()
-        
+
         # Prepare initial decoder inputs
         onnx_inputs = {
             'inputs_embeds': inputs_embeds
         }
-        
-        # Add attention_mask only if the decoder expects it
-        if 'attention_mask' in self.decoder_input_names:
-            onnx_inputs['attention_mask'] = attention_mask
-        
+
+        # Add 2D attention_mask only for non-Gemma models
+        if 'attention_mask' in self.decoder_input_names and per_layer_inputs is None:
+            onnx_inputs['attention_mask'] = attention_mask_2d
+
         # Add per_layer_inputs if available (Gemma3n models)
         if per_layer_inputs is not None:
             onnx_inputs['per_layer_inputs'] = per_layer_inputs
-        
+
         # Add position_ids if needed
         if 'position_ids' in self.decoder_input_names:
             onnx_inputs['position_ids'] = create_position_ids(seq_length, self.config)
-        
+
         # Initialize KV cache
         kv_cache = initialize_kv_cache(self.config, batch_size)
         for key, value in kv_cache.items():
             if key in self.decoder_input_names:
                 onnx_inputs[key] = value
-        
+
         # Generation loop
         for step in range(max_tokens):
             # Run decoder
             outputs = self.decoder_model.run(None, onnx_inputs)
-            
+
             # Get next token
             logits = outputs[0]
             next_token = np.argmax(logits[0, -1, :])
-            
+
             if next_token == self.tokenizer.eos_token_id:
                 break
-            
+
             # Update sequence
             generated_ids = np.concatenate([generated_ids, [[next_token]]], axis=1)
-            
-            # Get next token embeddings based on architecture
+
+            # Get embeddings based on architecture
             if self.embed_model is not None:
-                # Standard embedding model
-                next_embed = self.embed_model.run(None, {'input_ids': np.array([[next_token]])})
+                # For Gemma3n (has per_layer_inputs), recompute on full sequence
+                if per_layer_inputs is not None:
+                    embed_outputs = self.embed_model.run(None, {'input_ids': generated_ids})
+                    onnx_inputs['inputs_embeds'] = embed_outputs[0]
+                    onnx_inputs['per_layer_inputs'] = embed_outputs[1]
+                else:
+                    # Non-Gemma incremental embed
+                    next_embed_outputs = self.embed_model.run(None, {'input_ids': np.array([[next_token]])})
+                    onnx_inputs['inputs_embeds'] = next_embed_outputs[0]
             elif self.prepare_inputs_embeds_model is not None:
-                # Phi-3.5 style prepare_inputs_embeds - requires image_features input  
-                dummy_image_features = np.zeros((0, 3072), dtype=np.float32)  # No images (empty sequence)
+                # Phi-3.5 style prepare_inputs_embeds
+                dummy_image_features = np.zeros((0, 3072), dtype=np.float32)
                 next_embed_inputs = {
                     'input_ids': np.array([[next_token]]),
                     'image_features': dummy_image_features
                 }
-                next_embed = self.prepare_inputs_embeds_model.run(None, next_embed_inputs)
+                next_embed_outputs = self.prepare_inputs_embeds_model.run(None, next_embed_inputs)
+                onnx_inputs['inputs_embeds'] = next_embed_outputs[0]
             else:
                 raise ValueError("No embedding model available for next token generation")
-            
-            # Update inputs for next iteration
-            onnx_inputs['inputs_embeds'] = next_embed[0]
-            
-            # Update attention_mask only if the decoder expects it
-            if 'attention_mask' in self.decoder_input_names:
-                onnx_inputs['attention_mask'] = np.ones((1, generated_ids.shape[1]), dtype=np.int64)
-            
+
+            # Update 2D attention_mask only for non-Gemma models
+            if 'attention_mask' in self.decoder_input_names and per_layer_inputs is None:
+                onnx_inputs['attention_mask'] = np.ones_like(generated_ids)
+
             # Update position_ids
             if 'position_ids' in self.decoder_input_names:
-                onnx_inputs['position_ids'] = create_position_ids(seq_length, self.config, step + 1)
-            
+                # Position IDs should be for the *next* token, which is at the end of the current sequence
+                onnx_inputs['position_ids'] = create_position_ids(generated_ids.shape[1], self.config, generated_ids.shape[1] - 1)
+
             # Update KV cache
             output_idx = 1  # Skip logits
             for i in range(self.config.num_layers):
@@ -529,7 +547,7 @@ class ONNXInferenceEngine:
                     onnx_inputs[key_name] = outputs[output_idx]
                     onnx_inputs[value_name] = outputs[output_idx + 1]
                     output_idx += 2
-        
+
         return self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
     
     def _inject_gemma3n_features(self, inputs_embeds: np.ndarray, input_ids: np.ndarray, images: Optional[List[str]], audio: Optional[List[str]]) -> np.ndarray:

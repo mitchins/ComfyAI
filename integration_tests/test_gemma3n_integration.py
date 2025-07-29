@@ -95,11 +95,11 @@ def test_gemma3n_config_structure():
     
     spec = REFERENCE_MODELS[ReferenceModel.GEMMA_3N_E2B]
     
-    # Verify configuration
+    # Verify configuration matches HuggingFace config
     assert spec.repo_id == "onnx-community/gemma-3n-E2B-it-ONNX"
-    assert spec.config.num_layers == 24
-    assert spec.config.num_heads == 16
-    assert spec.config.head_dim == 64
+    assert spec.config.num_layers == 30   # text_config.num_hidden_layers
+    assert spec.config.num_heads == 8     # text_config.num_attention_heads  
+    assert spec.config.head_dim == 256    # hidden_size / num_attention_heads = 2048 / 8
     assert spec.config.has_vision is True
     assert spec.config.position_dims == 1
     

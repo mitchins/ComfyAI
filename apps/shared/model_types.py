@@ -64,6 +64,7 @@ class ONNXModelConfig:
     position_dims: int = 1  # 1 for standard, 3 for vision models like Qwen2-VL
     subfolder: str = "onnx"
     components: Dict[str, str] = None  # Maps component name to filename pattern
+    num_kv_heads: Optional[int] = None  # For grouped query attention, None means same as num_heads
     
     def __post_init__(self):
         if self.components is None:
@@ -217,12 +218,13 @@ REFERENCE_MODELS = {
     ReferenceModel.GEMMA_3N_E2B: ModelSpec(
         repo_id="onnx-community/gemma-3n-E2B-it-ONNX",
         config=ONNXModelConfig(
-            num_layers=30,  # Fixed: Gemma3n has 30 layers, not 24
-            num_heads=16,
-            head_dim=64,
-            has_vision=True,  # Updated: Gemma-3n has vision + audio
+            num_layers=30,  # Gemma3n text_config has 30 hidden layers
+            num_heads=8,    # Gemma3n text_config has 8 attention heads
+            head_dim=256,   # hidden_size / num_attention_heads = 2048 / 8 = 256
+            has_vision=True,  # Gemma-3n has vision + audio
             position_dims=1,
-            subfolder="onnx",  # Updated to use onnx subfolder
+            subfolder="onnx",
+            num_kv_heads=8,  # Gemma3n text_config has 8 key-value heads
             components={
                 'audio_encoder': 'audio_encoder{suffix}.onnx',
                 'decoder': 'decoder_model_merged{suffix}.onnx',
@@ -327,12 +329,15 @@ def create_position_ids(seq_length: int, config: ONNXModelConfig, step: int = 0)
 def initialize_kv_cache(config: ONNXModelConfig, batch_size: int = 1) -> Dict[str, np.ndarray]:
     """Initialize empty KV cache for the model."""
     kv_cache = {}
+    # Use separate kv_heads if available, otherwise default to num_heads
+    kv_heads = config.num_kv_heads if config.num_kv_heads is not None else config.num_heads
+    
     for i in range(config.num_layers):
         key_name = f'past_key_values.{i}.key'
         value_name = f'past_key_values.{i}.value'
         
-        # Shape: [batch_size, num_heads, 0, head_dim] (empty sequence)
-        empty_cache = np.zeros((batch_size, config.num_heads, 0, config.head_dim), dtype=np.float32)
+        # Shape: [batch_size, num_kv_heads, 0, head_dim] (empty sequence)
+        empty_cache = np.zeros((batch_size, kv_heads, 0, config.head_dim), dtype=np.float32)
         kv_cache[key_name] = empty_cache
         kv_cache[value_name] = empty_cache
     
