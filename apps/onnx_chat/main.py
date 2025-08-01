@@ -141,10 +141,15 @@ async def get_inference_engine(model_name: str) -> ONNXInferenceEngine:
     
     curated_model_name = model_name_mapping.get(validated_repo_id)
     if curated_model_name:
-        # Use curated model with smallest quantization
-        model_quant_key = get_smallest_quant_for_model(curated_model_name)
-        if model_quant_key is None:
-            raise ValueError(f"No quantization found for curated model: {curated_model_name}")
+        # Check if the original model_name already includes quantization
+        if '/' in model_name and model_name.startswith(curated_model_name):
+            # User specified exact model/quant, use it directly
+            model_quant_key = model_name
+        else:
+            # Use curated model with smallest quantization
+            model_quant_key = get_smallest_quant_for_model(curated_model_name)
+            if model_quant_key is None:
+                raise ValueError(f"No quantization found for curated model: {curated_model_name}")
     else:
         # Fall back to legacy approach
         model_quant_key = f"{validated_repo_id}:q4"

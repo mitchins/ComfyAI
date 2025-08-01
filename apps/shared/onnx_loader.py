@@ -399,6 +399,7 @@ class ONNXInferenceEngine:
         self.sessions = sessions
         self.tokenizer = tokenizer
         self.config = config
+        self.current_vision_features = None  # Initialize vision features storage
         
         # Handle different model architectures
         if 'model' in sessions:
@@ -502,11 +503,16 @@ class ONNXInferenceEngine:
                 inputs_embeds = self._inject_gemma3n_features(inputs_embeds, input_ids, images, audio)
         elif self.prepare_inputs_embeds_model is not None:
             # Phi-3.5 style prepare_inputs_embeds - requires image_features input
-            # For text-only inference, provide empty image_features indicating no images
-            dummy_image_features = np.zeros((0, 3072), dtype=np.float32)  # No images (empty sequence)
+            # Use real vision features if available, otherwise empty
+            if hasattr(self, 'current_vision_features') and self.current_vision_features is not None:
+                image_features = self.current_vision_features
+                logger.info(f"Using real vision features with shape: {image_features.shape}")
+            else:
+                image_features = np.zeros((0, 3072), dtype=np.float32)  # No images (empty sequence)
+            
             embed_inputs = {
                 'input_ids': input_ids,
-                'image_features': dummy_image_features
+                'image_features': image_features
             }
             embed_outputs = self.prepare_inputs_embeds_model.run(None, embed_inputs)
             inputs_embeds = embed_outputs[0]
@@ -570,10 +576,12 @@ class ONNXInferenceEngine:
                     onnx_inputs['inputs_embeds'] = next_embed_outputs[0]
             elif self.prepare_inputs_embeds_model is not None:
                 # Phi-3.5 style prepare_inputs_embeds
-                dummy_image_features = np.zeros((0, 3072), dtype=np.float32)
+                # For subsequent tokens, we don't need to pass image features again
+                # The model has already encoded them in the initial prompt
+                image_features = np.zeros((0, 3072), dtype=np.float32)
                 next_embed_inputs = {
                     'input_ids': np.array([[next_token]]),
-                    'image_features': dummy_image_features
+                    'image_features': image_features
                 }
                 next_embed_outputs = self.prepare_inputs_embeds_model.run(None, next_embed_inputs)
                 onnx_inputs['inputs_embeds'] = next_embed_outputs[0]
@@ -614,9 +622,71 @@ class ONNXInferenceEngine:
         
         # Process vision features if images provided
         if images and self.vision_model and image_token_id:
-            # For now, skip actual image processing - would need processor integration
-            # This is a placeholder for when we have proper multimodal input processing
-            pass
+            try:
+                # Process images through vision encoder
+                from PIL import Image
+                import io
+                import base64
+                
+                vision_features_list = []
+                for img_base64 in images:
+                    # Decode base64 image
+                    img_bytes = base64.b64decode(img_base64)
+                    img = Image.open(io.BytesIO(img_bytes))
+                    
+                    # Convert to RGB if needed
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Resize to expected size (960x960 for Qwen2-VL, may vary by model)
+                    # TODO: Make this model-specific
+                    img = img.resize((960, 960))
+                    
+                    # Convert to numpy array and preprocess
+                    # Shape: (height, width, channels) -> (channels, height, width)
+                    img_array = np.array(img).astype(np.float32)
+                    img_array = np.transpose(img_array, (2, 0, 1))
+                    
+                    # Normalize to [0, 1]
+                    img_array = img_array / 255.0
+                    
+                    # Add batch dimension: (channels, height, width) -> (batch, channels, height, width)
+                    img_array = np.expand_dims(img_array, axis=0)
+                    
+                    # Run through vision encoder
+                    vision_outputs = self.vision_model.run(None, {'pixel_values': img_array})
+                    vision_features = vision_outputs[0]  # Shape varies by model
+                    vision_features_list.append(vision_features)
+                    
+                    logger.info(f"Processed image {img.size} -> vision features shape: {vision_features.shape}")
+                
+                # Concatenate all vision features if multiple images
+                if vision_features_list:
+                    all_vision_features = np.concatenate(vision_features_list, axis=0)
+                    logger.info(f"Total vision features shape: {all_vision_features.shape}")
+                    
+                    # Store vision features for use in generation
+                    self.current_vision_features = all_vision_features
+                    
+                    # For Qwen2-VL style models, we need to insert vision features into the embeddings
+                    # Find positions of image tokens in the input
+                    image_token_positions = np.where(input_ids[0] == image_token_id)[0]
+                    
+                    if len(image_token_positions) > 0:
+                        logger.info(f"Found {len(image_token_positions)} image token positions")
+                        # TODO: Implement proper vision feature insertion at image token positions
+                        # For now, this at least processes the images
+                    else:
+                        logger.warning(f"No image tokens found in input! Image token ID: {image_token_id}")
+                        # For models without explicit image tokens, vision features may need different handling
+                else:
+                    self.current_vision_features = None
+                    
+            except Exception as e:
+                logger.error(f"Failed to process images: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                # Continue without vision features rather than failing completely
         
         # Process audio features if audio provided  
         if audio and self.audio_model and audio_token_id:
