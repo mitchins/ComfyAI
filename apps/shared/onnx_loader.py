@@ -481,7 +481,11 @@ class ONNXInferenceEngine:
     
     def _generate_multi_component(self, text: str, max_tokens: int, images: Optional[List[str]] = None, audio: Optional[List[str]] = None) -> str:
         """Generate text using multi-component ONNX model (like Qwen2-VL, Gemma3n)."""
-        # Tokenize input
+        # Special handling for Gemma3n models - use AutoProcessor like test_gemma3n.py
+        if "gemma" in self.tokenizer.name_or_path.lower() and (images or audio):
+            return self._generate_gemma3n_multimodal(text, max_tokens, images, audio)
+        
+        # Standard tokenization for other models
         inputs = self.tokenizer(text, return_tensors='np')
         input_ids = inputs['input_ids']
         attention_mask_2d = inputs.get('attention_mask', np.ones_like(input_ids))
@@ -491,14 +495,333 @@ class ONNXInferenceEngine:
 
         # Get embeddings based on architecture
         if self.embed_model is not None:
-            # Standard embedding model (Qwen2-VL, Gemma)
+            # Standard embedding model (Qwen2-VL, non-Gemma)
+            embed_outputs = self.embed_model.run(None, {'input_ids': input_ids})
+            inputs_embeds = embed_outputs[0]
+
+            # Gemma3n models return per_layer_inputs as second output
+            per_layer_inputs = embed_outputs[1] if len(embed_outputs) > 1 else None
+        elif self.prepare_inputs_embeds_model is not None:
+            # Phi-3.5 style prepare_inputs_embeds - requires image_features input
+            # Use real vision features if available, otherwise empty
+            if hasattr(self, 'current_vision_features') and self.current_vision_features is not None:
+                image_features = self.current_vision_features
+                logger.info(f"Using real vision features with shape: {image_features.shape}")
+            else:
+                image_features = np.zeros((0, 3072), dtype=np.float32)  # No images (empty sequence)
+            
+            embed_inputs = {
+                'input_ids': input_ids,
+                'image_features': image_features
+            }
+            embed_outputs = self.prepare_inputs_embeds_model.run(None, embed_inputs)
+            inputs_embeds = embed_outputs[0]
+            # per_layer_inputs remains None for Phi-3.5
+        else:
+            raise ValueError("No embedding model available for multi-component inference")
+
+        # Initialize sequence tracking
+        batch_size = 1
+        seq_length = input_ids.shape[1]
+        generated_ids = input_ids.copy()
+
+        # Prepare initial decoder inputs
+        onnx_inputs = {
+            'inputs_embeds': inputs_embeds
+        }
+
+        # Add 2D attention_mask only for non-Gemma models
+        if 'attention_mask' in self.decoder_input_names and per_layer_inputs is None:
+            onnx_inputs['attention_mask'] = attention_mask_2d
+
+        # Add per_layer_inputs if available (Gemma3n models)
+        if per_layer_inputs is not None:
+            onnx_inputs['per_layer_inputs'] = per_layer_inputs
+
+        # Add position_ids if needed
+        if 'position_ids' in self.decoder_input_names:
+            onnx_inputs['position_ids'] = create_position_ids(seq_length, self.config)
+
+        # Initialize KV cache
+        kv_cache = initialize_kv_cache(self.config, batch_size)
+        for key, value in kv_cache.items():
+            if key in self.decoder_input_names:
+                onnx_inputs[key] = value
+
+        # Generation loop
+        for step in range(max_tokens):
+            # Run decoder
+            outputs = self.decoder_model.run(None, onnx_inputs)
+
+            # Get next token
+            logits = outputs[0]
+            next_token = np.argmax(logits[0, -1, :])
+
+            if next_token == self.tokenizer.eos_token_id:
+                break
+
+            # Update sequence
+            generated_ids = np.concatenate([generated_ids, [[next_token]]], axis=1)
+
+            # Get embeddings based on architecture
+            if self.embed_model is not None:
+                # For Gemma3n (has per_layer_inputs), recompute on full sequence
+                if per_layer_inputs is not None:
+                    embed_outputs = self.embed_model.run(None, {'input_ids': generated_ids})
+                    onnx_inputs['inputs_embeds'] = embed_outputs[0]
+                    onnx_inputs['per_layer_inputs'] = embed_outputs[1]
+                else:
+                    # Non-Gemma incremental embed
+                    next_embed_outputs = self.embed_model.run(None, {'input_ids': np.array([[next_token]])})
+                    onnx_inputs['inputs_embeds'] = next_embed_outputs[0]
+            elif self.prepare_inputs_embeds_model is not None:
+                # Phi-3.5 style prepare_inputs_embeds
+                # For subsequent tokens, we don't need to pass image features again
+                # The model has already encoded them in the initial prompt
+                image_features = np.zeros((0, 3072), dtype=np.float32)
+                next_embed_inputs = {
+                    'input_ids': np.array([[next_token]]),
+                    'image_features': image_features
+                }
+                next_embed_outputs = self.prepare_inputs_embeds_model.run(None, next_embed_inputs)
+                onnx_inputs['inputs_embeds'] = next_embed_outputs[0]
+            else:
+                raise ValueError("No embedding model available for next token generation")
+
+            # Update 2D attention_mask only for non-Gemma models
+            if 'attention_mask' in self.decoder_input_names and per_layer_inputs is None:
+                onnx_inputs['attention_mask'] = np.ones_like(generated_ids)
+
+            # Update position_ids
+            if 'position_ids' in self.decoder_input_names:
+                # Position IDs should be for the *next* token, which is at the end of the current sequence
+                onnx_inputs['position_ids'] = create_position_ids(generated_ids.shape[1], self.config, generated_ids.shape[1] - 1)
+
+            # Update KV cache
+            output_idx = 1  # Skip logits
+            for i in range(self.config.num_layers):
+                key_name = f'past_key_values.{i}.key'
+                value_name = f'past_key_values.{i}.value'
+                if key_name in self.decoder_input_names:
+                    onnx_inputs[key_name] = outputs[output_idx]
+                    onnx_inputs[value_name] = outputs[output_idx + 1]
+                    output_idx += 2
+
+        return self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+    
+    def _generate_gemma3n_multimodal(self, text: str, max_tokens: int, images: Optional[List[str]] = None, audio: Optional[List[str]] = None) -> str:
+        """Generate text using Gemma3n with AutoProcessor like test_gemma3n.py."""
+        try:
+            import tempfile
+            import os
+            from PIL import Image
+            import io
+            import base64
+            
+            # Use AutoProcessor like test_gemma3n.py for proper multimodal processing
+            if USE_MOCK_ONNX:
+                processor = None
+            else:
+                from transformers import AutoProcessor
+                
+                # Get model_id from tokenizer name_or_path
+                model_id = getattr(self.tokenizer, 'name_or_path', 'google/gemma-3n-E2B-it')
+                
+                try:
+                    processor = AutoProcessor.from_pretrained(model_id)
+                    # Try patching fast image processor to allow fallback if necessary
+                    if hasattr(processor, "image_processor") and getattr(processor.image_processor, "is_fast", False):
+                        processor.image_processor = processor.image_processor.__class__.from_pretrained(model_id, use_fast=False)
+                except ValueError:
+                    processor = AutoProcessor.from_pretrained(model_id, use_fast=False)
+            
+            if processor is None:
+                logger.warning("AutoProcessor unavailable for Gemma3n, falling back to standard generation")
+                return self._generate_multi_component_fallback(text, max_tokens, images, audio)
+            
+            # Build message structure like test_gemma3n.py
+            content_parts = [{"type": "text", "text": text}]
+            
+            # Process images
+            temp_files = []
+            if images:
+                for img_base64 in images:
+                    # Decode base64 image and save to temp file for processor
+                    img_bytes = base64.b64decode(img_base64)
+                    img = Image.open(io.BytesIO(img_bytes))
+                    
+                    # Convert to RGB if needed
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save to temp file since processor expects file path or URL
+                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+                        img.save(tmp_file.name, 'JPEG')
+                        temp_image_path = tmp_file.name
+                        temp_files.append(temp_image_path)
+                        content_parts.append({"type": "image", "image": temp_image_path})
+            
+            # Process audio (placeholder - would need actual audio handling)
+            if audio:
+                logger.warning("Audio processing not yet implemented for Gemma3n")
+            
+            try:
+                # Create messages like test_gemma3n.py
+                messages = [
+                    {
+                        "role": "user",
+                        "content": content_parts,
+                    },
+                ]
+                
+                # Process with AutoProcessor like test_gemma3n.py
+                try:
+                    inputs = processor.apply_chat_template(
+                        messages,
+                        add_generation_prompt=True,
+                        tokenize=True,
+                        return_dict=True,
+                        return_tensors="np",
+                    )
+                except ValueError:
+                    # Fallback to PyTorch tensors if numpy not supported
+                    inputs = processor.apply_chat_template(
+                        messages,
+                        add_generation_prompt=True,
+                        tokenize=True,
+                        return_dict=True,
+                        return_tensors="pt",
+                    )
+                
+                # Convert to numpy if needed
+                def to_numpy(x):
+                    return x.numpy() if hasattr(x, "numpy") else x
+                
+                input_ids = to_numpy(inputs["input_ids"])
+                attention_mask = to_numpy(inputs.get("attention_mask", np.ones_like(input_ids)))
+                pixel_values = to_numpy(inputs.get("pixel_values")) if inputs.get("pixel_values") is not None else None
+                input_features = to_numpy(inputs.get("input_features")).astype(np.float32) if inputs.get("input_features") is not None else None
+                input_features_mask = to_numpy(inputs.get("input_features_mask")) if inputs.get("input_features_mask") is not None else None
+                
+                logger.info(f"Gemma3n AutoProcessor: input_ids shape: {input_ids.shape}")
+                if pixel_values is not None:
+                    logger.info(f"Gemma3n AutoProcessor: pixel_values shape: {pixel_values.shape}")
+                
+                # Follow the exact generation loop from test_gemma3n.py
+                batch_size = input_ids.shape[0]
+                position_ids = np.cumsum(attention_mask, axis=-1) - 1
+                
+                # Get config values like test_gemma3n.py
+                image_token_id = getattr(self.tokenizer, 'image_token_id', 256012)
+                audio_token_id = getattr(self.tokenizer, 'audio_token_id', 256013)
+                
+                # Initialize KV cache
+                past_key_values = {
+                    f"past_key_values.{layer}.{kv}": np.zeros([batch_size, self.config.num_kv_heads, 0, self.config.head_dim], dtype=np.float32)
+                    for layer in range(self.config.num_layers)
+                    for kv in ("key", "value")
+                }
+                
+                # Generation loop like test_gemma3n.py
+                generated_tokens = np.array([[]], dtype=np.int64)
+                image_features = None
+                audio_features = None
+                
+                for i in range(max_tokens):
+                    # Get embeddings like test_gemma3n.py
+                    inputs_embeds, per_layer_inputs = self.embed_model.run(None, {"input_ids": input_ids})
+                    
+                    # Process vision features once like test_gemma3n.py
+                    if image_features is None and pixel_values is not None:
+                        image_features = self.vision_model.run(["image_features"], {"pixel_values": pixel_values})[0]
+                        mask = (input_ids == image_token_id).reshape(-1)
+                        flat_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+                        flat_embeds[mask] = image_features.reshape(-1, image_features.shape[-1])
+                        inputs_embeds = flat_embeds.reshape(inputs_embeds.shape)
+                        logger.info(f"Injected vision features at {np.sum(mask)} positions")
+                    
+                    # Process audio features once like test_gemma3n.py
+                    if audio_features is None and input_features is not None and input_features_mask is not None:
+                        audio_features = self.audio_model.run(["audio_features"], {
+                            "input_features": input_features,
+                            "input_features_mask": input_features_mask,
+                        })[0]
+                        mask = (input_ids == audio_token_id).reshape(-1)
+                        flat_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+                        flat_embeds[mask] = audio_features.reshape(-1, audio_features.shape[-1])
+                        inputs_embeds = flat_embeds.reshape(inputs_embeds.shape)
+                        logger.info(f"Injected audio features at {np.sum(mask)} positions")
+                    
+                    # Run decoder like test_gemma3n.py
+                    decoder_inputs = dict(
+                        inputs_embeds=inputs_embeds,
+                        per_layer_inputs=per_layer_inputs,
+                        position_ids=position_ids,
+                        **past_key_values,
+                    )
+                    
+                    outputs = self.decoder_model.run(None, decoder_inputs)
+                    
+                    # Get next token
+                    logits = outputs[0]
+                    next_token = np.argmax(logits[0, -1, :])
+                    
+                    if next_token == self.tokenizer.eos_token_id:
+                        break
+                    
+                    # Update sequence
+                    generated_tokens = np.concatenate([generated_tokens, [[next_token]]], axis=1)
+                    input_ids = np.array([[next_token]])
+                    attention_mask = np.ones_like(input_ids)
+                    position_ids = position_ids[:, -1:] + 1
+                    
+                    # Update KV cache
+                    output_idx = 1  # Skip logits
+                    for layer in range(self.config.num_layers):
+                        key_name = f'past_key_values.{layer}.key'
+                        value_name = f'past_key_values.{layer}.value'
+                        past_key_values[key_name] = outputs[output_idx]
+                        past_key_values[value_name] = outputs[output_idx + 1]
+                        output_idx += 2
+                
+                # Decode the result
+                result = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+                logger.info(f"Gemma3n generated {generated_tokens.shape[-1]} tokens")
+                return result
+                
+            finally:
+                # Clean up temp files
+                for temp_file in temp_files:
+                    if os.path.exists(temp_file):
+                        os.unlink(temp_file)
+        
+        except Exception as e:
+            logger.error(f"Gemma3n multimodal generation failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Fall back to standard generation
+            return self._generate_multi_component_fallback(text, max_tokens, images, audio)
+    
+    def _generate_multi_component_fallback(self, text: str, max_tokens: int, images: Optional[List[str]] = None, audio: Optional[List[str]] = None) -> str:
+        """Fallback to original multi-component generation."""
+        # Standard tokenization for other models
+        inputs = self.tokenizer(text, return_tensors='np')
+        input_ids = inputs['input_ids']
+        attention_mask_2d = inputs.get('attention_mask', np.ones_like(input_ids))
+
+        # Initialize per_layer_inputs to None by default
+        per_layer_inputs = None
+
+        # Get embeddings based on architecture
+        if self.embed_model is not None:
+            # Standard embedding model (Qwen2-VL, non-Gemma)
             embed_outputs = self.embed_model.run(None, {'input_ids': input_ids})
             inputs_embeds = embed_outputs[0]
 
             # Gemma3n models return per_layer_inputs as second output
             per_layer_inputs = embed_outputs[1] if len(embed_outputs) > 1 else None
 
-            # Handle Gemma3n multimodal feature injection
+            # Handle Gemma3n multimodal feature injection (for fallback)
             if self.vision_model and self.audio_model and ("gemma" in self.tokenizer.name_or_path.lower()):
                 inputs_embeds = self._inject_gemma3n_features(inputs_embeds, input_ids, images, audio)
         elif self.prepare_inputs_embeds_model is not None:
@@ -613,72 +936,167 @@ class ONNXInferenceEngine:
         """Inject image and audio features into embeddings for Gemma3n models."""
         # Get special token IDs from tokenizer config
         try:
-            image_token_id = getattr(self.tokenizer, 'image_token_id', None)
+            image_token_id = getattr(self.tokenizer, 'image_token_id', None) 
             audio_token_id = getattr(self.tokenizer, 'audio_token_id', None)
         except:
             # Fallback values from test_gemma3n.py
             image_token_id = 256012  # Default from Gemma3n config
             audio_token_id = 256013  # Default from Gemma3n config
         
-        # Process vision features if images provided
+        # Process vision features if images provided (Gemma-3n specific)
         if images and self.vision_model and image_token_id:
             try:
-                # Process images through vision encoder
                 from PIL import Image
                 import io
                 import base64
+                import tempfile
+                import os
                 
-                vision_features_list = []
-                for img_base64 in images:
-                    # Decode base64 image
-                    img_bytes = base64.b64decode(img_base64)
-                    img = Image.open(io.BytesIO(img_bytes))
+                # Use AutoProcessor like test_gemma3n.py for proper image preprocessing
+                if USE_MOCK_ONNX:
+                    from transformers import AutoConfig
+                    processor = None
+                else:
+                    from transformers import AutoProcessor, AutoConfig
                     
-                    # Convert to RGB if needed
-                    if img.mode != 'RGB':
-                        img = img.convert('RGB')
+                    # Get model_id from tokenizer name_or_path
+                    model_id = getattr(self.tokenizer, 'name_or_path', 'google/gemma-3n-E2B-it')
                     
-                    # Resize to expected size (960x960 for Qwen2-VL, may vary by model)
-                    # TODO: Make this model-specific
-                    img = img.resize((960, 960))
-                    
-                    # Convert to numpy array and preprocess
-                    # Shape: (height, width, channels) -> (channels, height, width)
-                    img_array = np.array(img).astype(np.float32)
-                    img_array = np.transpose(img_array, (2, 0, 1))
-                    
-                    # Normalize to [0, 1]
-                    img_array = img_array / 255.0
-                    
-                    # Add batch dimension: (channels, height, width) -> (batch, channels, height, width)
-                    img_array = np.expand_dims(img_array, axis=0)
-                    
-                    # Run through vision encoder
-                    vision_outputs = self.vision_model.run(None, {'pixel_values': img_array})
-                    vision_features = vision_outputs[0]  # Shape varies by model
-                    vision_features_list.append(vision_features)
-                    
-                    logger.info(f"Processed image {img.size} -> vision features shape: {vision_features.shape}")
+                    try:
+                        processor = AutoProcessor.from_pretrained(model_id)
+                        # Try patching fast image processor to allow fallback if necessary
+                        if hasattr(processor, "image_processor") and getattr(processor.image_processor, "is_fast", False):
+                            processor.image_processor = processor.image_processor.__class__.from_pretrained(model_id, use_fast=False)
+                    except ValueError:
+                        processor = AutoProcessor.from_pretrained(model_id, use_fast=False)
                 
-                # Concatenate all vision features if multiple images
+                if processor is None:
+                    # Fallback to manual preprocessing if processor unavailable
+                    logger.warning("AutoProcessor unavailable, falling back to manual preprocessing")
+                    vision_features_list = []
+                    for img_base64 in images:
+                        # Decode base64 image
+                        img_bytes = base64.b64decode(img_base64)
+                        img = Image.open(io.BytesIO(img_bytes))
+                        
+                        # Convert to RGB if needed
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        
+                        # For Gemma-3n: Resize to 768x768 (as per working example)
+                        img = img.resize((768, 768))
+                        
+                        # Convert to numpy array and preprocess (matching working example)
+                        img_array = np.array(img).astype(np.float32)
+                        img_array = img_array / 255.0  # Normalize to [0, 1]
+                        img_array = np.transpose(img_array, (2, 0, 1))  # HWC -> CHW
+                        img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+                        
+                        logger.info(f"Manual Gemma-3n image preprocessing: {img.size} -> {img_array.shape}")
+                        
+                        # Run through vision encoder
+                        vision_outputs = self.vision_model.run(None, {'pixel_values': img_array})
+                        vision_features = vision_outputs[0]
+                        vision_features_list.append(vision_features)
+                        
+                        logger.info(f"Manual Gemma-3n vision features shape: {vision_features.shape}")
+                else:
+                    # Use AutoProcessor like test_gemma3n.py
+                    vision_features_list = []
+                    for img_base64 in images:
+                        # Decode base64 image and save to temp file for processor
+                        img_bytes = base64.b64decode(img_base64)
+                        img = Image.open(io.BytesIO(img_bytes))
+                        
+                        # Convert to RGB if needed
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        
+                        # Save to temp file since processor expects file path or URL
+                        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+                            img.save(tmp_file.name, 'JPEG')
+                            temp_image_path = tmp_file.name
+                        
+                        try:
+                            # Create messages like test_gemma3n.py
+                            messages = [
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "image", "image": temp_image_path},
+                                    ],
+                                },
+                            ]
+                            
+                            # Process with AutoProcessor like test_gemma3n.py
+                            try:
+                                inputs = processor.apply_chat_template(
+                                    messages,
+                                    add_generation_prompt=False,  # Just preprocessing, no generation prompt
+                                    tokenize=False,  # Don't tokenize, just get pixel_values
+                                    return_dict=True,
+                                    return_tensors="np",
+                                )
+                            except ValueError:
+                                # Fallback to PyTorch tensors if numpy not supported
+                                inputs = processor.apply_chat_template(
+                                    messages,
+                                    add_generation_prompt=False,
+                                    tokenize=False,
+                                    return_dict=True,
+                                    return_tensors="pt",
+                                )
+                            
+                            # Extract pixel_values and convert to numpy if needed
+                            pixel_values = inputs.get("pixel_values")
+                            if pixel_values is not None:
+                                if hasattr(pixel_values, 'numpy'):
+                                    pixel_values = pixel_values.numpy()
+                                pixel_values = pixel_values.astype(np.float32)
+                                
+                                logger.info(f"AutoProcessor Gemma-3n pixel_values shape: {pixel_values.shape}")
+                                
+                                # Run through vision encoder with processor-generated pixel_values
+                                vision_outputs = self.vision_model.run(None, {'pixel_values': pixel_values})
+                                vision_features = vision_outputs[0]
+                                vision_features_list.append(vision_features)
+                                
+                                logger.info(f"AutoProcessor Gemma-3n vision features shape: {vision_features.shape}")
+                            else:
+                                logger.warning("No pixel_values returned from AutoProcessor")
+                                
+                        finally:
+                            # Clean up temp file
+                            if os.path.exists(temp_image_path):
+                                os.unlink(temp_image_path)
+                
+                # Store vision features for injection into embeddings
                 if vision_features_list:
-                    all_vision_features = np.concatenate(vision_features_list, axis=0)
-                    logger.info(f"Total vision features shape: {all_vision_features.shape}")
+                    self.current_vision_features = vision_features_list[0]  # Use first image
+                    logger.info(f"Stored Gemma-3n vision features: {self.current_vision_features.shape}")
                     
-                    # Store vision features for use in generation
-                    self.current_vision_features = all_vision_features
-                    
-                    # For Qwen2-VL style models, we need to insert vision features into the embeddings
                     # Find positions of image tokens in the input
                     image_token_positions = np.where(input_ids[0] == image_token_id)[0]
                     
                     if len(image_token_positions) > 0:
-                        logger.info(f"Found {len(image_token_positions)} image token positions")
-                        # TODO: Implement proper vision feature insertion at image token positions
-                        # For now, this at least processes the images
+                        logger.info(f"Found {len(image_token_positions)} image token positions in Gemma-3n")
+                        
+                        # Replace image tokens with vision features (like working example)
+                        mask = (input_ids == image_token_id).reshape(-1)
+                        flat_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+                        
+                        # Reshape vision features to match embedding dimension
+                        vision_flat = self.current_vision_features.reshape(-1, self.current_vision_features.shape[-1])
+                        
+                        # Replace image token embeddings with vision features
+                        if np.sum(mask) == vision_flat.shape[0]:
+                            flat_embeds[mask] = vision_flat
+                            inputs_embeds = flat_embeds.reshape(inputs_embeds.shape)
+                            logger.info(f"Successfully replaced {np.sum(mask)} image tokens with vision features")
+                        else:
+                            logger.warning(f"Token count mismatch: {np.sum(mask)} tokens vs {vision_flat.shape[0]} features")
                     else:
-                        logger.warning(f"No image tokens found in input! Image token ID: {image_token_id}")
-                        # For models without explicit image tokens, vision features may need different handling
+                        logger.warning(f"No image tokens found in Gemma-3n input! Image token ID: {image_token_id}")
                 else:
                     self.current_vision_features = None
                     
