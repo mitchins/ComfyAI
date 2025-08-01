@@ -134,23 +134,21 @@ async def root():
         
         .status {{ 
             margin-top: 2rem; 
-            padding: 1rem; 
-            background: #d4edda;
+            padding: 1rem 0; 
             color: #155724;
-            border-radius: 8px; 
             border-left: 4px solid #28a745;
+            padding-left: 1rem;
             text-align: left;
         }}
         
         .api-endpoints {{ 
             margin-top: 2rem; 
             text-align: left; 
-            background: #f8f9fa;
             color: #495057;
-            padding: 1.5rem; 
-            border-radius: 8px; 
+            padding: 1.5rem 0; 
             font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            border: 1px solid #e9ecef;
+            border-top: 1px solid #e9ecef;
+            padding-top: 1.5rem;
         }}
         
         .api-endpoints strong {{ 

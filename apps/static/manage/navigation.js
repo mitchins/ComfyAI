@@ -114,18 +114,16 @@
                     margin-top: 2rem;
                 }
                 
-                /* Professional content styling */
+                /* Professional content styling - no cards for consistency */
                 .main-content {
                     max-width: 1200px;
                     margin: 2rem auto;
                     padding: 0 1rem;
                 }
                 .main-container {
-                    background: white;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    padding: 2rem;
-                    margin-bottom: 2rem;
+                    max-width: 1200px;
+                    margin: 2rem auto;
+                    padding: 0 2rem;
                 }
                 
                 /* Integration with all page types */
