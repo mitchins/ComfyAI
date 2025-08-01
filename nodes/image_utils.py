@@ -5,7 +5,6 @@ except Exception:  # pragma: no cover - optional
 import logging
 from PIL import Image
 import io
-import logging
 
 
 def image_to_bytes(image_tensor):

@@ -55,8 +55,8 @@ pip install -r ComfyAI/apps/face_api/requirements.txt
 # 🎯 Vision Testing: http://localhost:8000/test
 
 # Or individual services:
-python -m ComfyAI.apps.onnx_chat.main    # Chat/vision models
-PRESET=photo uvicorn ComfyAI.apps.face_api.main:app  # Face comparison
+python -m apps.onnx_chat.main    # Chat/vision models
+PRESET=photo uvicorn apps.face_api.main:app  # Face comparison
 ```
 
 ---
