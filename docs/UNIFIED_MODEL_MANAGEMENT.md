@@ -34,9 +34,8 @@ The unified model management system provides:
 ## Supported Models
 
 ### Chat Server Models
-- **Qwen2-VL-2B-Instruct** - 2B vision+text model with 8 quantization options
-- **Gemma-3n-E2B-it-ONNX** - Multimodal chat model with 3 quantization options  
-- **Phi-3.5-vision-instruct** - 4B vision+text model with 2 quantization options
+- **Gemma-3n-E2B-it-ONNX** - State-of-the-art multimodal model (vision+audio+text) with 4 quantization options
+- **SmolVLM-256M-Instruct** - Ultra-lightweight vision+text model with 8 quantization options (experimental)
 
 ### Face Server Models
 - **Face Detection Models** - Multiple versions (v1.2-v1.4) for real photos and anime

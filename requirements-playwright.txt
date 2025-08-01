@@ -1,0 +1,7 @@
+# Playwright testing dependencies for screenshot generation
+playwright==1.40.0
+pytest-playwright==0.4.3
+
+# Additional testing utilities
+pytest-xvfb==3.0.0  # For headless testing on Linux
+pytest-html==4.1.1  # Generate HTML test reports with screenshots

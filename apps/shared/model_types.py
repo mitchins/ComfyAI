@@ -27,21 +27,14 @@ class ModelType(str, Enum):
 class ReferenceModel(str, Enum):
     """Curated list of supported ONNX models."""
     
-    # Qwen2-VL models - Vision + Text
-    QWEN2_VL_2B = "qwen2-vl-2b"
-    QWEN2_VL_7B = "qwen2-vl-7b"
+    # Gemma-3n models - Vision + Text + Audio (SOTA)
+    GEMMA_3N_E2B = "gemma-3n-e2b"
+    
+    # SmolVLM models - Ultra-lightweight vision + text (Future)
+    SMOLVLM_256M = "smolvlm-256m"
     
     # Granite models - Vision + Text (NOT just text-only granite)
     GRANITE_VISION_3_2B = "granite-vision-3-2b"
-    
-    # Gemma-3n models - Vision + Text + Audio
-    GEMMA_3N_E2B = "gemma-3n-e2b"
-    
-    # Phi-3.5 vision models
-    PHI_3_5_VISION = "phi-3.5-vision"
-    
-    # SmolVLM models - Ultra-lightweight vision + text
-    SMOLVLM_256M = "smolvlm-256m"
 
 
 class Quantization(str, Enum):
@@ -211,34 +204,26 @@ MODEL_QUANT_CONFIGS = {
 
 # Reference model catalog - curated and tested
 REFERENCE_MODELS = {
-    ReferenceModel.QWEN2_VL_2B: ModelSpec(
-        repo_id="onnx-community/Qwen2-VL-2B-Instruct",
+    ReferenceModel.GEMMA_3N_E2B: ModelSpec(
+        repo_id="onnx-community/gemma-3n-E2B-it-ONNX",
         config=ONNXModelConfig(
-            num_layers=28,
-            num_heads=2,
-            head_dim=128,
-            has_vision=True,
-            position_dims=3,  # text, height, width
-            subfolder="onnx"
+            num_layers=30,  # Gemma3n text_config has 30 hidden layers
+            num_heads=8,    # Gemma3n text_config has 8 attention heads
+            head_dim=256,   # hidden_size / num_attention_heads = 2048 / 8 = 256
+            has_vision=True,  # Gemma-3n has vision + audio
+            position_dims=1,
+            subfolder="onnx",
+            num_kv_heads=8,  # Gemma3n text_config has 8 key-value heads
+            components={
+                'audio_encoder': 'audio_encoder{suffix}.onnx',
+                'decoder': 'decoder_model_merged{suffix}.onnx',
+                'embed_tokens': 'embed_tokens{suffix}.onnx',
+                'vision_encoder': 'vision_encoder{suffix}.onnx',
+            }
         ),
-        supported_quants=[Quantization.Q4, Quantization.FP16],
+        supported_quants=[Quantization.Q4, Quantization.QUANTIZED, Quantization.FP16, Quantization.FULL],
         default_quant=Quantization.Q4,
-        description="2B vision+text model, multi-component architecture"
-    ),
-    
-    ReferenceModel.QWEN2_VL_7B: ModelSpec(
-        repo_id="onnx-community/Qwen2-VL-7B-Instruct", 
-        config=ONNXModelConfig(
-            num_layers=32,
-            num_heads=4,
-            head_dim=128,
-            has_vision=True,
-            position_dims=3,
-            subfolder="onnx"
-        ),
-        supported_quants=[Quantization.Q4, Quantization.FP16],
-        default_quant=Quantization.Q4,
-        description="7B vision+text model, multi-component architecture"
+        description="2B multimodal model with vision, text, and audio (SOTA)"
     ),
     
     ReferenceModel.GRANITE_VISION_3_2B: ModelSpec(
@@ -280,26 +265,6 @@ REFERENCE_MODELS = {
         supported_quants=[Quantization.Q4, Quantization.QUANTIZED, Quantization.FP16, Quantization.FULL],
         default_quant=Quantization.Q4,
         description="2B multimodal model with vision, text, and audio"
-    ),
-    
-    ReferenceModel.PHI_3_5_VISION: ModelSpec(
-        repo_id="onnx-community/Phi-3.5-vision-instruct",
-        config=ONNXModelConfig(
-            num_layers=32,
-            num_heads=32,
-            head_dim=96,
-            has_vision=True,
-            position_dims=1,
-            subfolder="onnx",
-            components={
-                'prepare_inputs_embeds': 'prepare_inputs_embeds{suffix}.onnx',
-                'decoder': 'model{suffix}.onnx',
-                'vision_encoder': 'vision_encoder{suffix}.onnx',
-            }
-        ),
-        supported_quants=[Quantization.Q4, Quantization.Q4_F16],  # Only Q4 and Q4_F16 available
-        default_quant=Quantization.Q4,  # Use Q4 as smallest
-        description="4B vision+text model, Phi-3.5 vision architecture"
     ),
     
     ReferenceModel.SMOLVLM_256M: ModelSpec(

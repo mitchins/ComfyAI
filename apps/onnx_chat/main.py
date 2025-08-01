@@ -106,14 +106,12 @@ def validate_model_name(model_name: str) -> str:
             return spec.repo_id
     
     # Handle curated model names directly
-    curated_model_names = ["Qwen2-VL-2B-Instruct", "Gemma-3n-E2B-it-ONNX", "Phi-3.5-vision-instruct", "SmolVLM-256M-Instruct"]
+    curated_model_names = ["Gemma-3n-E2B-it-ONNX", "SmolVLM-256M-Instruct"]
     for curated_name in curated_model_names:
         if model_name == curated_name or model_name.startswith(curated_name):
             # Map curated name back to repo_id
             mapping = {
-                "Qwen2-VL-2B-Instruct": "onnx-community/Qwen2-VL-2B-Instruct",
                 "Gemma-3n-E2B-it-ONNX": "onnx-community/gemma-3n-E2B-it-ONNX",
-                "Phi-3.5-vision-instruct": "onnx-community/Phi-3.5-vision-instruct",
                 "SmolVLM-256M-Instruct": "HuggingFaceTB/SmolVLM-256M-Instruct",
             }
             return mapping[curated_name]
@@ -133,9 +131,7 @@ async def get_inference_engine(model_name: str) -> ONNXInferenceEngine:
     
     # Map repo_id back to model name for curated configs
     model_name_mapping = {
-        "onnx-community/Qwen2-VL-2B-Instruct": "Qwen2-VL-2B-Instruct",
         "onnx-community/gemma-3n-E2B-it-ONNX": "Gemma-3n-E2B-it-ONNX",
-        "onnx-community/Phi-3.5-vision-instruct": "Phi-3.5-vision-instruct",
         "HuggingFaceTB/SmolVLM-256M-Instruct": "SmolVLM-256M-Instruct",
     }
     

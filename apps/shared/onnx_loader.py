@@ -294,9 +294,7 @@ class ONNXModelLoader:
     def _get_repo_id_from_model_name(self, model_name: str) -> Optional[str]:
         """Map model name to repo_id using curated model mappings."""
         model_repo_mapping = {
-            "Qwen2-VL-2B-Instruct": "onnx-community/Qwen2-VL-2B-Instruct",
             "Gemma-3n-E2B-it-ONNX": "onnx-community/gemma-3n-E2B-it-ONNX", 
-            "Phi-3.5-vision-instruct": "onnx-community/Phi-3.5-vision-instruct",
             "SmolVLM-256M-Instruct": "HuggingFaceTB/SmolVLM-256M-Instruct",
         }
         return model_repo_mapping.get(model_name)
@@ -480,10 +478,12 @@ class ONNXInferenceEngine:
         return self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
     
     def _generate_multi_component(self, text: str, max_tokens: int, images: Optional[List[str]] = None, audio: Optional[List[str]] = None) -> str:
-        """Generate text using multi-component ONNX model (like Qwen2-VL, Gemma3n)."""
-        # Special handling for Gemma3n models - use AutoProcessor like test_gemma3n.py
+        """Generate text using multi-component ONNX model (like Qwen2-VL, Gemma3n, SmolVLM)."""
+        # Special handling for different model architectures
         if "gemma" in self.tokenizer.name_or_path.lower() and (images or audio):
             return self._generate_gemma3n_multimodal(text, max_tokens, images, audio)
+        elif "smolvlm" in self.tokenizer.name_or_path.lower() and images:
+            return self._generate_smolvlm_multimodal(text, max_tokens, images)
         
         # Standard tokenization for other models
         inputs = self.tokenizer(text, return_tensors='np')
@@ -801,6 +801,207 @@ class ONNXInferenceEngine:
             logger.error(traceback.format_exc())
             # Fall back to standard generation
             return self._generate_multi_component_fallback(text, max_tokens, images, audio)
+    
+    def _generate_smolvlm_multimodal(self, text: str, max_tokens: int, images: Optional[List[str]] = None) -> str:
+        """Generate text using SmolVLM with official transformers + ONNXRuntime approach."""
+        try:
+            import tempfile
+            import os
+            from PIL import Image
+            import io
+            import base64
+            
+            # Use transformers processor like official SmolVLM example
+            if USE_MOCK_ONNX:
+                processor = None
+            else:
+                from transformers import AutoProcessor
+                from transformers.image_utils import load_image
+                
+                # Get model_id from tokenizer name_or_path
+                model_id = getattr(self.tokenizer, 'name_or_path', 'HuggingFaceTB/SmolVLM-256M-Instruct')
+                
+                try:
+                    processor = AutoProcessor.from_pretrained(model_id)
+                except Exception as e:
+                    logger.error(f"Failed to load SmolVLM processor: {e}")
+                    processor = None
+            
+            if processor is None:
+                logger.warning("AutoProcessor unavailable for SmolVLM, falling back to standard generation")
+                return self._generate_multi_component_fallback(text, max_tokens, images, None)
+            
+            # Process images like official example
+            processed_images = []
+            temp_files = []
+            
+            if images:
+                for img_base64 in images:
+                    # Decode base64 image and save to temp file
+                    img_bytes = base64.b64decode(img_base64)
+                    img = Image.open(io.BytesIO(img_bytes))
+                    
+                    # Convert to RGB if needed
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save to temp file since transformers load_image expects path or URL
+                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+                        img.save(tmp_file.name, 'JPEG')
+                        temp_image_path = tmp_file.name
+                        temp_files.append(temp_image_path)
+                        
+                        # Load image using transformers utility
+                        processed_images.append(load_image(temp_image_path))
+            
+            try:
+                # Create messages like official SmolVLM example
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image"},  # SmolVLM uses simple image placeholder
+                            {"type": "text", "text": text}
+                        ]
+                    },
+                ]
+                
+                # Apply chat template like official example
+                prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+                
+                # Process with images like official example
+                inputs = processor(text=prompt, images=processed_images, return_tensors="np")
+                
+                # Convert to numpy if needed
+                def to_numpy(x):
+                    return x.numpy() if hasattr(x, "numpy") else x
+                
+                input_ids = to_numpy(inputs["input_ids"])
+                attention_mask = to_numpy(inputs["attention_mask"])
+                pixel_values = to_numpy(inputs["pixel_values"]) if "pixel_values" in inputs else None
+                pixel_attention_mask = to_numpy(inputs["pixel_attention_mask"]) if "pixel_attention_mask" in inputs else None
+                
+                logger.info(f"SmolVLM: input_ids shape: {input_ids.shape}")
+                if pixel_values is not None:
+                    logger.info(f"SmolVLM: pixel_values shape: {pixel_values.shape}")
+                if pixel_attention_mask is not None:
+                    logger.info(f"SmolVLM: pixel_attention_mask shape: {pixel_attention_mask.shape}")
+                
+                # Get config values like official example
+                image_token_id = getattr(self.tokenizer, 'image_token_id', None)
+                if hasattr(self.tokenizer, 'special_tokens_map') and self.tokenizer.special_tokens_map:
+                    # Try to find image token in special tokens
+                    for token_name, token_value in self.tokenizer.special_tokens_map.items():
+                        if 'image' in token_name.lower():
+                            image_token_id = self.tokenizer.convert_tokens_to_ids(token_value)
+                            break
+                
+                if image_token_id is None:
+                    # SmolVLM typically uses a specific image token ID, let's check the config
+                    try:
+                        from transformers import AutoConfig
+                        config = AutoConfig.from_pretrained(model_id)
+                        image_token_id = getattr(config, 'image_token_id', None)
+                        logger.info(f"SmolVLM image_token_id from config: {image_token_id}")
+                    except:
+                        # Fallback - SmolVLM commonly uses specific token IDs
+                        image_token_id = 151646  # Common SmolVLM image token
+                        logger.warning(f"Using fallback SmolVLM image_token_id: {image_token_id}")
+                
+                # Initialize KV cache like official example
+                batch_size = input_ids.shape[0]
+                past_key_values = {
+                    f"past_key_values.{layer}.{kv}": np.zeros([batch_size, self.config.num_kv_heads, 0, self.config.head_dim], dtype=np.float32)
+                    for layer in range(self.config.num_layers)
+                    for kv in ("key", "value")
+                }
+                
+                # Generation loop like official SmolVLM example
+                generated_tokens = np.array([[]], dtype=np.int64)
+                image_features = None
+                position_ids = np.cumsum(attention_mask, axis=-1)
+                
+                for i in range(max_tokens):
+                    # Get embeddings
+                    inputs_embeds = self.embed_model.run(None, {"input_ids": input_ids})[0]
+                    
+                    # Process vision features once like official example
+                    if image_features is None and pixel_values is not None:
+                        vision_inputs = {"pixel_values": pixel_values}
+                        
+                        # Add pixel_attention_mask if available (as boolean like official example)
+                        if pixel_attention_mask is not None:
+                            vision_inputs["pixel_attention_mask"] = pixel_attention_mask.astype(np.bool_)
+                        
+                        image_features = self.vision_model.run(["image_features"], vision_inputs)[0]
+                        
+                        # Merge text and vision embeddings like official example
+                        if image_token_id is not None:
+                            # Only inject on first sequence, not subsequent single tokens
+                            if input_ids.shape[1] > 1:  # Initial long sequence
+                                mask = (input_ids == image_token_id)
+                                vision_features_flat = image_features.reshape(-1, image_features.shape[-1])
+                                num_image_tokens = np.sum(mask)
+                                
+                                if vision_features_flat.shape[0] == num_image_tokens:
+                                    inputs_embeds[mask] = vision_features_flat
+                                    logger.info(f"SmolVLM: Injected {num_image_tokens} vision features on initial sequence")
+                                else:
+                                    logger.warning(f"SmolVLM: Vision feature mismatch - {num_image_tokens} tokens vs {vision_features_flat.shape[0]} features")
+                            else:
+                                logger.debug("SmolVLM: Skipping vision injection for single token")
+                        else:
+                            logger.warning("SmolVLM: No image_token_id found, skipping vision feature injection")
+                    
+                    # Run decoder like official example
+                    decoder_inputs = dict(
+                        inputs_embeds=inputs_embeds,
+                        attention_mask=attention_mask,
+                        position_ids=position_ids,
+                        **past_key_values,
+                    )
+                    
+                    outputs = self.decoder_model.run(None, decoder_inputs)
+                    
+                    # Get next token
+                    logits = outputs[0]
+                    next_token = np.argmax(logits[:, -1], axis=-1, keepdims=True)
+                    
+                    if (next_token == self.tokenizer.eos_token_id).all():
+                        break
+                    
+                    # Update sequence like official example
+                    generated_tokens = np.concatenate([generated_tokens, next_token], axis=-1)
+                    input_ids = next_token
+                    attention_mask = np.ones_like(input_ids)
+                    position_ids = position_ids[:, -1:] + 1
+                    
+                    # Update KV cache
+                    output_idx = 1  # Skip logits
+                    for layer in range(self.config.num_layers):
+                        key_name = f'past_key_values.{layer}.key'
+                        value_name = f'past_key_values.{layer}.value'
+                        past_key_values[key_name] = outputs[output_idx]
+                        past_key_values[value_name] = outputs[output_idx + 1]
+                        output_idx += 2
+                
+                # Decode the result like official example
+                result = processor.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+                logger.info(f"SmolVLM generated {generated_tokens.shape[-1]} tokens")
+                return result
+                
+            finally:
+                # Clean up temp files
+                for temp_file in temp_files:
+                    if os.path.exists(temp_file):
+                        os.unlink(temp_file)
+        
+        except Exception as e:
+            logger.error(f"SmolVLM multimodal generation failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Fall back to standard generation
+            return self._generate_multi_component_fallback(text, max_tokens, images, None)
     
     def _generate_multi_component_fallback(self, text: str, max_tokens: int, images: Optional[List[str]] = None, audio: Optional[List[str]] = None) -> str:
         """Fallback to original multi-component generation."""

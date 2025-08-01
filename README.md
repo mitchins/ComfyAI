@@ -1,6 +1,6 @@
 # **ComfyAI – LLM-Powered Vision & Text Query Nodes for ComfyUI**  
 
-🚀 **ComfyAI** brings **multimodal AI capabilities** directly into your **ComfyUI workflows** with powerful custom nodes for text and vision inference using models like **Qwen-VL**, **Llava**, and **face recognition**.
+🚀 **ComfyAI** brings **multimodal AI capabilities** directly into your **ComfyUI workflows** with powerful custom nodes for text and vision inference using state-of-the-art models like **Gemma-3n** and advanced **face recognition**.
 
 Transform your ComfyUI experience with intelligent image analysis, face comparison, and conditional workflow control - all through simple, drag-and-drop nodes.
 
@@ -97,9 +97,8 @@ PRESET=photo uvicorn apps.face_api.main:app  # Face comparison
 ## 🛠️ **Supported Models**
 
 ### **Vision-Language Models**
-- **Qwen2-VL** (2B parameters) – Strong multimodal understanding
-- **Gemma-3n** – Advanced multimodal chat capabilities  
-- **Phi-3.5-Vision** (4B parameters) – Efficient vision-text processing
+- **Gemma-3n** (2B parameters) – State-of-the-art multimodal model with vision, audio, and text capabilities
+- **SmolVLM** (256M parameters) – Ultra-lightweight vision model (experimental)
 
 ### **Face Recognition Models**
 - **ArcFace ResNet100** – High-accuracy face embedding
