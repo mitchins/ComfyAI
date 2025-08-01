@@ -39,6 +39,9 @@ class ReferenceModel(str, Enum):
     
     # Phi-3.5 vision models
     PHI_3_5_VISION = "phi-3.5-vision"
+    
+    # SmolVLM models - Ultra-lightweight vision + text
+    SMOLVLM_256M = "smolvlm-256m"
 
 
 class Quantization(str, Enum):
@@ -162,6 +165,48 @@ MODEL_QUANT_CONFIGS = {
         "decoder":               "onnx/model_q4f16.onnx",
         "vision_encoder":        "onnx/vision_encoder_q4f16.onnx",
     },
+    
+    # SmolVLM-256M-Instruct - Ultra-lightweight with all quantization options
+    "SmolVLM-256M-Instruct/FP32": {
+        "embed_tokens":    "onnx/embed_tokens.onnx",
+        "decoder":         "onnx/decoder_model_merged.onnx",
+        "vision_encoder":  "onnx/vision_encoder.onnx",
+    },
+    "SmolVLM-256M-Instruct/FP16": {
+        "embed_tokens":    "onnx/embed_tokens_fp16.onnx",
+        "decoder":         "onnx/decoder_model_merged_fp16.onnx",
+        "vision_encoder":  "onnx/vision_encoder_fp16.onnx",
+    },
+    "SmolVLM-256M-Instruct/INT8": {
+        "embed_tokens":    "onnx/embed_tokens_int8.onnx",
+        "decoder":         "onnx/decoder_model_merged_int8.onnx",
+        "vision_encoder":  "onnx/vision_encoder_int8.onnx",
+    },
+    "SmolVLM-256M-Instruct/UINT8": {
+        "embed_tokens":    "onnx/embed_tokens_uint8.onnx",
+        "decoder":         "onnx/decoder_model_merged_uint8.onnx",
+        "vision_encoder":  "onnx/vision_encoder_uint8.onnx",
+    },
+    "SmolVLM-256M-Instruct/Q4": {
+        "embed_tokens":    "onnx/embed_tokens_q4.onnx",
+        "decoder":         "onnx/decoder_model_merged_q4.onnx",
+        "vision_encoder":  "onnx/vision_encoder_q4.onnx",
+    },
+    "SmolVLM-256M-Instruct/Q4_F16": {
+        "embed_tokens":    "onnx/embed_tokens_q4f16.onnx",
+        "decoder":         "onnx/decoder_model_merged_q4f16.onnx",
+        "vision_encoder":  "onnx/vision_encoder_q4f16.onnx",
+    },
+    "SmolVLM-256M-Instruct/BNB4": {
+        "embed_tokens":    "onnx/embed_tokens_bnb4.onnx",
+        "decoder":         "onnx/decoder_model_merged_bnb4.onnx",
+        "vision_encoder":  "onnx/vision_encoder_bnb4.onnx",
+    },
+    "SmolVLM-256M-Instruct/QUANTIZED": {
+        "embed_tokens":    "onnx/embed_tokens_quantized.onnx",
+        "decoder":         "onnx/decoder_model_merged_quantized.onnx",
+        "vision_encoder":  "onnx/vision_encoder_quantized.onnx",
+    },
 }
 
 # Reference model catalog - curated and tested
@@ -255,6 +300,31 @@ REFERENCE_MODELS = {
         supported_quants=[Quantization.Q4, Quantization.Q4_F16],  # Only Q4 and Q4_F16 available
         default_quant=Quantization.Q4,  # Use Q4 as smallest
         description="4B vision+text model, Phi-3.5 vision architecture"
+    ),
+    
+    ReferenceModel.SMOLVLM_256M: ModelSpec(
+        repo_id="HuggingFaceTB/SmolVLM-256M-Instruct",
+        config=ONNXModelConfig(
+            num_layers=30,
+            num_heads=9,
+            head_dim=64,  # 576 / 9 = 64
+            num_kv_heads=3,
+            has_vision=True,
+            position_dims=1,
+            subfolder="onnx",
+            components={
+                'embed': 'embed_tokens{suffix}.onnx',
+                'decoder': 'decoder_model_merged{suffix}.onnx',
+                'vision_encoder': 'vision_encoder{suffix}.onnx',
+            }
+        ),
+        supported_quants=[
+            Quantization.UINT8, Quantization.INT8, Quantization.Q4, 
+            Quantization.Q4_F16, Quantization.BNB4, Quantization.FP16, 
+            Quantization.QUANTIZED, Quantization.FULL
+        ],
+        default_quant=Quantization.UINT8,  # Smallest available
+        description="256M ultra-lightweight vision+text model, excellent for CPU/edge inference"
     )
 }
 

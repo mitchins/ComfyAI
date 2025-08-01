@@ -252,8 +252,22 @@ async def download_unified_model(req: DownloadModelRequest):
             from apps.shared.model_types import get_curated_model_config
             
             # Map model ID back to config name
-            model_name = req.model_id.replace("chat_", "").replace("_", "-").title()
-            config_key = f"{model_name}/{req.quantization}"
+            model_name = req.model_id.replace("chat-", "")
+            
+            # Handle special cases for model name formatting
+            model_name_mapping = {
+                "smolvlm_256m_instruct": "SmolVLM-256M-Instruct",
+                "qwen2_vl_2b_instruct": "Qwen2-VL-2B-Instruct", 
+                "gemma_3n_e2b_it_onnx": "Gemma-3n-E2B-it-ONNX",
+                "phi_3.5_vision_instruct": "Phi-3.5-vision-instruct"
+            }
+            
+            config_model_name = model_name_mapping.get(model_name)
+            if not config_model_name:
+                # Fallback: title case with underscores to hyphens
+                config_model_name = model_name.replace("_", "-").title()
+            
+            config_key = f"{config_model_name}/{req.quantization}"
             
             quant_config = get_curated_model_config(config_key)
             if not quant_config:
@@ -297,8 +311,22 @@ async def delete_unified_model(model_id: str, quantization: Optional[str] = None
             from apps.shared.model_types import get_curated_model_config
             
             # Map model ID back to config name
-            model_name = model_id.replace("chat_", "").replace("_", "-").title()
-            config_key = f"{model_name}/{quantization}"
+            model_name = model_id.replace("chat-", "")
+            
+            # Handle special cases for model name formatting
+            model_name_mapping = {
+                "smolvlm_256m_instruct": "SmolVLM-256M-Instruct",
+                "qwen2_vl_2b_instruct": "Qwen2-VL-2B-Instruct", 
+                "gemma_3n_e2b_it_onnx": "Gemma-3n-E2B-it-ONNX",
+                "phi_3.5_vision_instruct": "Phi-3.5-vision-instruct"
+            }
+            
+            config_model_name = model_name_mapping.get(model_name)
+            if not config_model_name:
+                # Fallback: title case with underscores to hyphens
+                config_model_name = model_name.replace("_", "-").title()
+            
+            config_key = f"{config_model_name}/{quantization}"
             
             quant_config = get_curated_model_config(config_key)
             if quant_config:

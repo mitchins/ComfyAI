@@ -1,0 +1,29 @@
+# Server deployment dependencies
+# Everything needed to run the unified ComfyAI inference server
+# Includes both face comparison and ONNX vision model inference
+
+# Web framework and server
+fastapi>=0.95.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
+
+# Basic data handling
+numpy>=1.23.0
+pillow>=9.0.0
+requests>=2.28.0
+
+# File uploads and multipart form data
+python-multipart>=0.0.5
+
+# ONNX runtime for vision model inference
+onnxruntime>=1.15.0
+
+# HuggingFace ecosystem for model downloads and tokenization
+huggingface_hub>=0.17.0
+transformers>=4.30.0
+
+# InsightFace for face analysis (face detection and recognition)
+insightface>=0.7.0
+
+# Note: This is the complete server deployment package
+# Face comparison is a key differentiator since no standard solution exists

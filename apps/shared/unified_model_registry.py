@@ -182,6 +182,7 @@ class UnifiedModelRegistry:
             "Qwen2-VL-2B-Instruct": "onnx-community/Qwen2-VL-2B-Instruct",
             "Gemma-3n-E2B-it-ONNX": "onnx-community/gemma-3n-E2B-it-ONNX",
             "Phi-3.5-vision-instruct": "onnx-community/Phi-3.5-vision-instruct",
+            "SmolVLM-256M-Instruct": "HuggingFaceTB/SmolVLM-256M-Instruct",
         }
         return model_repo_mapping.get(model_name)
     

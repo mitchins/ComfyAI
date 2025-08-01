@@ -17,6 +17,8 @@ import os
 
 # Ensure unit test mode for modules that check this env var
 os.environ.setdefault("UNIT_TEST_MODE", "1")
+# Enable mock ONNX for unit tests
+os.environ.setdefault("USE_MOCK_ONNX", "true")
 
 # Add repository root to sys.path so local modules resolve
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

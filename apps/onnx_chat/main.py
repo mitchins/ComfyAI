@@ -15,11 +15,11 @@ from apps.shared.model_types import (
     get_available_model_quants, get_smallest_quant_for_model
 )
 
-# Optional import for testing environments
-try:
-    from apps.shared.onnx_loader import ONNXModelLoader, ONNXInferenceEngine
-    ONNX_LOADER_AVAILABLE = True
-except ImportError as e:
+# Import ONNX components with explicit mock handling
+# Check for explicit mock environment variable
+USE_MOCK_ONNX = os.getenv("USE_MOCK_ONNX", "false").lower() in ("true", "1", "yes")
+
+if USE_MOCK_ONNX:
     # Mock classes for testing
     class MockONNXModelLoader:
         def load_model(self, model_name):
@@ -28,13 +28,21 @@ except ImportError as e:
     class MockONNXInferenceEngine:
         def __init__(self, *args, **kwargs):
             pass
-        def generate_text(self, text, max_tokens=100, images=None):
+        def generate_text(self, text, max_tokens=100, images=None, audio=None):
             return "mocked response"
     
     ONNXModelLoader = MockONNXModelLoader
     ONNXInferenceEngine = MockONNXInferenceEngine
     ONNX_LOADER_AVAILABLE = False
-    print(f"Warning: ONNX loader not available: {e}")
+    print("Using mock ONNX components for testing")
+else:
+    try:
+        from apps.shared.onnx_loader import ONNXModelLoader, ONNXInferenceEngine
+        ONNX_LOADER_AVAILABLE = True
+    except ImportError as e:
+        print(f"Error: ONNX dependencies not available: {e}")
+        print("Set USE_MOCK_ONNX=true environment variable to use mock components for testing")
+        raise
 
 import base64
 import io
@@ -98,7 +106,7 @@ def validate_model_name(model_name: str) -> str:
             return spec.repo_id
     
     # Handle curated model names directly
-    curated_model_names = ["Qwen2-VL-2B-Instruct", "Gemma-3n-E2B-it-ONNX", "Phi-3.5-vision-instruct"]
+    curated_model_names = ["Qwen2-VL-2B-Instruct", "Gemma-3n-E2B-it-ONNX", "Phi-3.5-vision-instruct", "SmolVLM-256M-Instruct"]
     for curated_name in curated_model_names:
         if model_name == curated_name or model_name.startswith(curated_name):
             # Map curated name back to repo_id
@@ -106,6 +114,7 @@ def validate_model_name(model_name: str) -> str:
                 "Qwen2-VL-2B-Instruct": "onnx-community/Qwen2-VL-2B-Instruct",
                 "Gemma-3n-E2B-it-ONNX": "onnx-community/gemma-3n-E2B-it-ONNX",
                 "Phi-3.5-vision-instruct": "onnx-community/Phi-3.5-vision-instruct",
+                "SmolVLM-256M-Instruct": "HuggingFaceTB/SmolVLM-256M-Instruct",
             }
             return mapping[curated_name]
     
@@ -127,6 +136,7 @@ async def get_inference_engine(model_name: str) -> ONNXInferenceEngine:
         "onnx-community/Qwen2-VL-2B-Instruct": "Qwen2-VL-2B-Instruct",
         "onnx-community/gemma-3n-E2B-it-ONNX": "Gemma-3n-E2B-it-ONNX",
         "onnx-community/Phi-3.5-vision-instruct": "Phi-3.5-vision-instruct",
+        "HuggingFaceTB/SmolVLM-256M-Instruct": "SmolVLM-256M-Instruct",
     }
     
     curated_model_name = model_name_mapping.get(validated_repo_id)

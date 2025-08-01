@@ -47,7 +47,14 @@ For privacy and offline use, run the included lightweight server:
 pip install -r ComfyAI/apps/onnx_chat/requirements.txt
 pip install -r ComfyAI/apps/face_api/requirements.txt
 
-# Start servers
+# Quick unified server (recommended)
+./deploy.sh build && ./deploy.sh run
+
+# Access at: http://localhost:8000/
+# 🌐 Management UI: http://localhost:8000/ui  
+# 🎯 Vision Testing: http://localhost:8000/test
+
+# Or individual services:
 python -m ComfyAI.apps.onnx_chat.main    # Chat/vision models
 PRESET=photo uvicorn ComfyAI.apps.face_api.main:app  # Face comparison
 ```

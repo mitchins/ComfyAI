@@ -1,3 +1,8 @@
-requests>=2.28
-pillow>=9.0
-numpy>=1.23
+# ComfyAI - Unified AI Model Server
+# Main requirements file for full server deployment
+
+# Complete server deployment (face comparison + ONNX vision inference)
+-r requirements-core.txt
+
+# This is the main "inference server" - face comparison is the key differentiator
+# since no standard solution exists, while ONNX vision models are the value-add

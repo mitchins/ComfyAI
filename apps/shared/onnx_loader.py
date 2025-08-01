@@ -3,14 +3,56 @@
 from typing import Dict, Optional, List, Any
 import logging
 import numpy as np
+import os
 
+# Check for explicit mock environment variable
+USE_MOCK_ONNX = os.getenv("USE_MOCK_ONNX", "false").lower() in ("true", "1", "yes")
 
-import onnxruntime as ort
-from transformers import AutoTokenizer
-from huggingface_hub import hf_hub_download
-ONNX_AVAILABLE = True
+if USE_MOCK_ONNX:
+    # Mock implementations for testing
+    class MockSession:
+        def run(self, *args, **kwargs):
+            return [np.random.rand(1, 10, 32000)]
+        def get_inputs(self):
+            return [type('MockInput', (), {'name': 'input_ids'})()]
+    
+    class MockTokenizer:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __call__(self, *args, **kwargs):
+            return {'input_ids': np.array([[1, 2, 3]])}
+        @property 
+        def eos_token_id(self):
+            return 2
+        def decode(self, *args, **kwargs):
+            return "mocked response"
+        @classmethod
+        def from_pretrained(cls, *args, **kwargs):
+            return cls()
+    
+    class MockConfig:
+        def __init__(self, *args, **kwargs):
+            pass
+        @classmethod
+        def from_pretrained(cls, *args, **kwargs):
+            return cls()
+    
+    def mock_hf_hub_download(*args, **kwargs):
+        return "/mock/path/model.onnx"
+    
+    # Mock the imports
+    ort = type('MockORT', (), {'InferenceSession': MockSession})
+    AutoTokenizer = MockTokenizer
+    hf_hub_download = mock_hf_hub_download
+    ONNX_AVAILABLE = False
+    print("Using mock ONNX dependencies for testing")
+else:
+    import onnxruntime as ort
+    from transformers import AutoTokenizer
+    from huggingface_hub import hf_hub_download
+    ONNX_AVAILABLE = True
+
     # Mock classes for testing environments
-    # class MockSession:
     #     def run(self, *args, **kwargs):
     #         return [np.random.rand(1, 10, 32000)]
     #     def get_inputs(self):
@@ -194,9 +236,17 @@ class ONNXModelLoader:
         tokenizer = AutoTokenizer.from_pretrained(repo_id, use_fast=True, trust_remote_code=True)
         
         # Get actual architecture parameters from model config (like test_gemma3n.py)
-        from transformers import AutoConfig
+        if USE_MOCK_ONNX:
+            # Mock AutoConfig for testing
+            hf_config = MockConfig()
+        else:
+            from transformers import AutoConfig
+        
         try:
-            hf_config = AutoConfig.from_pretrained(repo_id, trust_remote_code=True)
+            if not USE_MOCK_ONNX:
+                hf_config = AutoConfig.from_pretrained(repo_id, trust_remote_code=True)
+            else:
+                hf_config = MockConfig()
             # Update config with actual model parameters
             if hasattr(hf_config, 'text_config'):
                 # Multi-modal models have text_config

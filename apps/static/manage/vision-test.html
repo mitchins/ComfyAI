@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyAI Vision & Face Test UI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .header p { opacity: 0.9; font-size: 1.1rem; }
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 1rem 2rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #6c757d;
+            transition: all 0.3s ease;
+        }
+        .tab-button.active {
+            background: white;
+            color: #4facfe;
+            border-bottom: 3px solid #4facfe;
+        }
+        .tab-content {
+            padding: 2rem;
+            display: none;
+        }
+        .tab-content.active { display: block; }
+        
+        .upload-zone {
+            border: 3px dashed #e9ecef;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #4facfe;
+            background: rgba(79, 172, 254, 0.05);
+        }
+        .upload-zone.has-image {
+            border-color: #28a745;
+            background: rgba(40, 167, 69, 0.05);
+        }
+        .upload-zone img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .upload-text {
+            color: #6c757d;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+        .upload-hint {
+            color: #adb5bd;
+            font-size: 0.9rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #4facfe;
+        }
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff5722 100%);
+            color: white;
+        }
+        .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4); }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .result {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            border-left: 4px solid #4facfe;
+        }
+        .result h3 {
+            color: #495057;
+            margin-bottom: 1rem;
+        }
+        .result pre {
+            background: white;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .error {
+            background: #fff5f5;
+            border-left-color: #ff6b6b;
+        }
+        .error h3 { color: #e53e3e; }
+        
+        .face-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .similarity-score {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-left: 1rem;
+        }
+        .similarity-high { background: #d4edda; color: #155724; }
+        .similarity-medium { background: #fff3cd; color: #856404; }
+        .similarity-low { background: #f8d7da; color: #721c24; }
+        
+        @media (max-width: 768px) {
+            .container { margin: 0; border-radius: 0; }
+            .face-comparison { grid-template-columns: 1fr; }
+            .tabs { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 ComfyAI Vision & Face Test</h1>
+            <p>Test vision-language models and face comparison APIs with drag & drop</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('vision')">Vision Chat</button>
+            <button class="tab-button" onclick="switchTab('face')">Face Comparison</button>
+        </div>
+        
+        <!-- Vision Chat Tab -->
+        <div id="vision-tab" class="tab-content active">
+            <div class="form-group">
+                <label for="model-select">Model</label>
+                <select id="model-select" class="form-control">
+                    <option value="SmolVLM-256M-Instruct">SmolVLM-256M-Instruct (Ultra-lightweight, CPU-friendly)</option>
+                    <option value="Qwen2-VL-2B-Instruct">Qwen2-VL-2B-Instruct (High quality vision)</option>
+                    <option value="Gemma-3n-E2B-it-ONNX">Gemma-3n-E2B-it-ONNX (Multimodal)</option>
+                    <option value="Phi-3.5-vision-instruct">Phi-3.5-vision-instruct (Microsoft)</option>
+                </select>
+            </div>
+            
+            <div class="upload-zone" id="vision-upload">
+                <div class="upload-text">📷 Drop an image here or click to select</div>
+                <div class="upload-hint">Supports JPG, PNG, WebP</div>
+                <input type="file" id="vision-file" accept="image/*" style="display: none;">
+            </div>
+            
+            <div class="form-group">
+                <label for="vision-prompt">Question/Prompt</label>
+                <textarea id="vision-prompt" class="form-control" placeholder="What do you see in this image?" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="max-tokens">Max Tokens</label>
+                <input type="number" id="max-tokens" class="form-control" value="100" min="10" max="500">
+            </div>
+            
+            <button id="vision-submit" class="btn btn-primary" onclick="submitVisionChat()">
+                <span id="vision-spinner" class="spinner" style="display: none;"></span>
+                Analyze Image
+            </button>
+            
+            <div id="vision-result" style="display: none;"></div>
+        </div>
+        
+        <!-- Face Comparison Tab -->
+        <div id="face-tab" class="tab-content">
+            <div class="face-comparison">
+                <div>
+                    <div class="upload-zone" id="face-upload-a">
+                        <div class="upload-text">👤 Drop Face A here</div>
+                        <div class="upload-hint">First face to compare</div>
+                        <input type="file" id="face-file-a" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+                <div>
+                    <div class="upload-zone" id="face-upload-b">
+                        <div class="upload-text">👤 Drop Face B here</div>
+                        <div class="upload-hint">Second face to compare</div>
+                        <input type="file" id="face-file-b" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+            </div>
+            
+            <button id="face-submit" class="btn btn-primary" onclick="submitFaceComparison()">
+                <span id="face-spinner" class="spinner" style="display: none;"></span>
+                Compare Faces
+            </button>
+            
+            <button class="btn btn-danger" onclick="clearFaceImages()" style="margin-left: 1rem;">
+                Clear Images
+            </button>
+            
+            <div id="face-result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script src="navigation.js"></script>
+    <script>
+        // Global state
+        let visionImage = null;
+        let faceImageA = null;
+        let faceImageB = null;
+        
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}-tab`).classList.add('active');
+        }
+        
+        // File upload handling
+        function setupUploadZone(zoneId, fileInputId, callback) {
+            const zone = document.getElementById(zoneId);
+            const fileInput = document.getElementById(fileInputId);
+            
+            zone.addEventListener('click', () => fileInput.click());
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) handleFile(files[0], zone, callback);
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) handleFile(e.target.files[0], zone, callback);
+            });
+        }
+        
+        function handleFile(file, zone, callback) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file.');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                zone.innerHTML = '';
+                zone.appendChild(img);
+                zone.classList.add('has-image');
+                callback(file, e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // Vision chat functionality
+        async function submitVisionChat() {
+            const prompt = document.getElementById('vision-prompt').value.trim();
+            const model = document.getElementById('model-select').value;
+            const maxTokens = parseInt(document.getElementById('max-tokens').value);
+            
+            if (!prompt) {
+                alert('Please enter a question or prompt.');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('vision-submit');
+            const spinner = document.getElementById('vision-spinner');
+            const resultDiv = document.getElementById('vision-result');
+            
+            submitBtn.disabled = true;
+            spinner.style.display = 'inline-block';
+            
+            try {
+                const messages = [{ role: 'user', content: prompt }];
+                const payload = { model, messages, max_tokens: maxTokens };
+                
+                // Add image if provided
+                if (visionImage) {
+                    const base64 = visionImage.split(',')[1]; // Remove data:image/xxx;base64, prefix
+                    payload.images = [base64];
+                }
+                
+                const response = await fetch('/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${data.detail || 'Unknown error'}`);
+                }
+                
+                showResult('vision-result', {
+                    model: data.model,
+                    response: data.choices[0].message.content
+                });
+                
+            } catch (error) {
+                showError('vision-result', error.message);
+            } finally {
+                submitBtn.disabled = false;
+                spinner.style.display = 'none';
+            }
+        }
+        
+        // Face comparison functionality
+        async function submitFaceComparison() {
+            if (!faceImageA || !faceImageB) {
+                alert('Please upload both face images.');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('face-submit');
+            const spinner = document.getElementById('face-spinner');
+            const resultDiv = document.getElementById('face-result');
+            
+            submitBtn.disabled = true;
+            spinner.style.display = 'inline-block';
+            
+            try {
+                const formData = new FormData();
+                formData.append('image_a', faceImageA);
+                formData.append('image_b', faceImageB);
+                
+                const response = await fetch('/v1/image/compare_faces', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${data.detail || 'Unknown error'}`);
+                }
+                
+                showFaceResult(data);
+                
+            } catch (error) {
+                showError('face-result', error.message);
+            } finally {
+                submitBtn.disabled = false;
+                spinner.style.display = 'none';
+            }
+        }
+        
+        function showResult(elementId, data) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = `
+                <h3>✅ Result</h3>
+                <p><strong>Model:</strong> ${data.model}</p>
+                <pre>${data.response}</pre>
+            `;
+            resultDiv.style.display = 'block';
+        }
+        
+        function showFaceResult(data) {
+            const resultDiv = document.getElementById('face-result');
+            const similarity = data.similarity;
+            
+            let scoreClass = 'similarity-low';
+            if (similarity > 0.8) scoreClass = 'similarity-high';
+            else if (similarity > 0.6) scoreClass = 'similarity-medium';
+            
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = `
+                <h3>👥 Face Comparison Result</h3>
+                <p><strong>Similarity Score:</strong> 
+                    <span class="similarity-score ${scoreClass}">${(similarity * 100).toFixed(1)}%</span>
+                </p>
+                <p><strong>Match:</strong> ${data.is_match ? '✅ Yes' : '❌ No'}</p>
+                <p><strong>Threshold:</strong> ${(data.threshold * 100).toFixed(1)}%</p>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            resultDiv.style.display = 'block';
+        }
+        
+        function showError(elementId, message) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = 'result error';
+            resultDiv.innerHTML = `
+                <h3>❌ Error</h3>
+                <pre>${message}</pre>
+            `;
+            resultDiv.style.display = 'block';
+        }
+        
+        function clearFaceImages() {
+            faceImageA = null;
+            faceImageB = null;
+            
+            const zoneA = document.getElementById('face-upload-a');
+            const zoneB = document.getElementById('face-upload-b');
+            
+            zoneA.innerHTML = '<div class="upload-text">👤 Drop Face A here</div><div class="upload-hint">First face to compare</div>';
+            zoneB.innerHTML = '<div class="upload-text">👤 Drop Face B here</div><div class="upload-hint">Second face to compare</div>';
+            
+            zoneA.classList.remove('has-image');
+            zoneB.classList.remove('has-image');
+            
+            document.getElementById('face-result').style.display = 'none';
+        }
+        
+        // Initialize upload zones
+        document.addEventListener('DOMContentLoaded', () => {
+            setupUploadZone('vision-upload', 'vision-file', (file, dataUrl) => {
+                visionImage = dataUrl;
+            });
+            
+            setupUploadZone('face-upload-a', 'face-file-a', (file, dataUrl) => {
+                faceImageA = file;
+            });
+            
+            setupUploadZone('face-upload-b', 'face-file-b', (file, dataUrl) => {
+                faceImageB = file;
+            });
+        });
+    </script>
+</body>
+</html>

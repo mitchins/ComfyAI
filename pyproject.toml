@@ -11,18 +11,31 @@ where = ["."]
 include = ["nodes*", "apps*", "comfyai*", "common*"]
 
 [project.optional-dependencies]
-onnx = [
-    "onnxruntime>=1.15",
-    "fastapi>=0.95",
-    "uvicorn>=0.22",
+# Client-side ComfyUI nodes only
+client = [
+    "numpy>=1.23.0",
+    "pillow>=9.0.0",
+    "requests>=2.28.0"
 ]
-# torch = ["torch>=2.0"]
-
-[project.dev-dependencies]
-pytest = "^7.0"
-pillow = "^9.0"
-numpy = "^1.23"
-requests = "^2.28"
+# Full server deployment (face + ONNX inference)
+server = [
+    "fastapi>=0.95.0",
+    "uvicorn>=0.22.0", 
+    "pydantic>=2.0.0",
+    "numpy>=1.23.0",
+    "pillow>=9.0.0",
+    "requests>=2.28.0",
+    "python-multipart>=0.0.5",
+    "onnxruntime>=1.15.0",
+    "huggingface_hub>=0.17.0",
+    "transformers>=4.30.0",
+    "insightface>=0.7.0"
+]
+# Development and testing (includes future playwright, etc.)
+dev = [
+    "pytest>=7.0.0",
+    "httpx>=0.24.0"
+]
 
 [project.scripts]
 comfyai-onnx-server = "apps.onnx_chat.main:main"

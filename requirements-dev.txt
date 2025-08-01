@@ -1,4 +1,19 @@
--r requirements.txt
--r apps/face_api/requirements.txt
-pytest>=7.0
-httpx
+# Development and testing dependencies
+# For testing, CI/CD, and future browser automation
+
+# Include server deployment dependencies
+-r requirements-core.txt
+
+# Testing framework and utilities
+pytest>=7.0.0
+httpx>=0.24.0
+
+# Future: Browser automation and E2E testing
+# playwright>=1.30.0 (uncomment when needed)
+
+# Development tools
+# black>=23.0.0 (code formatting)
+# ruff>=0.1.0 (fast linting)
+
+# Test client for API testing
+# httpx is preferred over requests for async testing with FastAPI

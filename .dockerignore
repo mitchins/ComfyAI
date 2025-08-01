@@ -1,0 +1,72 @@
+# Git and version control
+.git
+.gitignore
+.github
+
+# Python cache and build artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache
+.coverage
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Documentation and development files
+*.md
+!README.md
+docs/
+DEVELOPMENT.md
+
+# Test files and data
+tests/
+integration_tests/
+test_*.py
+debug_*.py
+pytestdebug.log
+
+# Build artifacts and temp files
+build/
+dist/
+*.egg-info/
+.tox/
+
+# Cache directories that will be created in container
+.cache/
+*.log
+*.tmp
+
+# Local environment files
+.env
+.env.local
+
+# Model files (too large for container build, should be downloaded at runtime)
+*.onnx
+*.onnx_data
+*.bin
+*.safetensors
+
+# Images and test data
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.b64
+!Example*.png
+
+# OS generated files
+Thumbs.db
+.DS_Store

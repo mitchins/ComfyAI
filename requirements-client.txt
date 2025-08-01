@@ -1,0 +1,9 @@
+# Client-side dependencies for ComfyUI nodes
+# Minimal requirements to run the nodes within ComfyUI
+
+# Basic data handling and HTTP requests
+numpy>=1.23.0
+pillow>=9.0.0
+requests>=2.28.0
+
+# Note: ComfyUI provides torch, so we don't include it here

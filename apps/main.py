@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse, HTMLResponse
 import importlib
 import pkgutil
 from apps.shared.manage_cache import list_cached_entries
@@ -46,6 +47,97 @@ def register_routers():
                 print(f"❌ Failed to register {app_path.name} router: {e}")
 
 register_routers()
+
+# Root redirect to main UI
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    """Root endpoint with helpful navigation to all UIs."""
+    return HTMLResponse(content=f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyAI Server</title>
+    <style>
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px; margin: 50px auto; padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; color: white;
+        }}
+        .container {{ 
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 2rem; text-align: center;
+        }}
+        h1 {{ font-size: 2.5rem; margin-bottom: 1rem; }}
+        .links {{ display: grid; gap: 1rem; margin: 2rem 0; }}
+        .link {{ 
+            display: block; padding: 1rem 2rem; background: rgba(255,255,255,0.2);
+            border-radius: 8px; text-decoration: none; color: white;
+            transition: all 0.3s ease; font-size: 1.1rem;
+        }}
+        .link:hover {{ 
+            background: rgba(255,255,255,0.3); transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }}
+        .status {{ 
+            margin-top: 2rem; padding: 1rem; background: rgba(0,255,0,0.2);
+            border-radius: 8px; border-left: 4px solid #00ff00;
+        }}
+        .api-endpoints {{ 
+            margin-top: 2rem; text-align: left; background: rgba(0,0,0,0.2);
+            padding: 1rem; border-radius: 8px; font-family: monospace;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 ComfyAI Server</h1>
+        <p>Unified inference server for vision models and face comparison</p>
+        
+        <div class="links">
+            <a href="/manage/ui/" class="link">
+                🌐 <strong>Model Management UI</strong><br>
+                <small>Manage and download models</small>
+            </a>
+            <a href="/manage/ui/vision-test.html" class="link">
+                🎯 <strong>Vision & Face Test UI</strong><br>
+                <small>Drag & drop testing interface</small>
+            </a>
+            <a href="/docs" class="link">
+                📚 <strong>API Documentation</strong><br>
+                <small>Interactive OpenAPI docs</small>
+            </a>
+        </div>
+        
+        <div class="status">
+            ✅ <strong>Server Status:</strong> Running and healthy
+        </div>
+        
+        <div class="api-endpoints">
+            <strong>Key API Endpoints:</strong><br>
+            POST /v1/chat/completions (Vision + text)<br>
+            POST /v1/image/compare_faces (Face comparison)<br>
+            GET /v1/models (List available models)<br>
+            GET /health (Server health check)
+        </div>
+    </div>
+</body>
+</html>
+    """)
+
+# Quick redirect for common paths
+@app.get("/ui")
+async def ui_redirect():
+    """Redirect /ui to the main management UI."""
+    return RedirectResponse(url="/manage/ui/")
+
+@app.get("/test")
+async def test_redirect():
+    """Redirect /test to the vision test UI."""
+    return RedirectResponse(url="/manage/ui/vision-test.html")
+
 app.mount(
     "/manage/ui",
     StaticFiles(directory=STATIC_DIR, html=True),
