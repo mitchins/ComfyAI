@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.openapi.docs import get_swagger_ui_html
 import importlib
 import pkgutil
 from apps.shared.manage_cache import list_cached_entries
@@ -10,7 +11,12 @@ from apps.shared.model_types import ModelType
 from common.logging import setup_logging
 
 setup_logging()
-app = FastAPI(title="ComfyAI Master API")
+app = FastAPI(
+    title="ComfyAI Master API", 
+    version="1.0.0",
+    openapi_version="3.0.2",
+    docs_url=None  # Disable default docs to use custom
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static" / "manage"
 
@@ -137,6 +143,107 @@ async def ui_redirect():
 async def test_redirect():
     """Redirect /test to the vision test UI."""
     return RedirectResponse(url="/manage/ui/vision-test.html")
+
+@app.get("/docs", response_class=HTMLResponse)
+async def custom_swagger_ui_html():
+    """Custom docs page with navigation."""
+    return HTMLResponse(content=f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ComfyAI API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+    <style>
+        body {{ margin: 0; padding: 0; }}
+        .comfyai-nav {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }}
+        .nav-container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 1rem;
+            height: 60px;
+        }}
+        .nav-brand .brand-link {{
+            color: white;
+            text-decoration: none;
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }}
+        .nav-brand .brand-link:hover {{ color: rgba(255,255,255,0.9); }}
+        .nav-links {{
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }}
+        .nav-link {{
+            color: rgba(255,255,255,0.9);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }}
+        .nav-link:hover {{
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateY(-1px);
+        }}
+        .nav-link.active {{
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }}
+        #swagger-ui {{ padding-top: 0; }}
+        .swagger-ui .topbar {{ display: none; }}
+    </style>
+</head>
+<body>
+    <nav class="comfyai-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <a href="/" class="brand-link">🤖 ComfyAI</a>
+            </div>
+            <div class="nav-links">
+                <a href="/" class="nav-link" title="Home">🏠 Home</a>
+                <a href="/manage/ui/" class="nav-link" title="Model Management">🌐 Models</a>
+                <a href="/manage/ui/vision-test.html" class="nav-link" title="Vision & Face Testing">🎯 Test</a>
+                <a href="/docs" class="nav-link active" title="API Documentation">📚 Docs</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div id="swagger-ui"></div>
+    
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script>
+        const ui = SwaggerUIBundle({{
+            url: '/openapi.json',
+            dom_id: '#swagger-ui',
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.presets.standalone
+            ],
+            layout: "BaseLayout",
+            deepLinking: true,
+            showExtensions: true,
+            showCommonExtensions: true,
+            tryItOutEnabled: true
+        }});
+    </script>
+</body>
+</html>
+    """)
 
 app.mount(
     "/manage/ui",

@@ -313,18 +313,16 @@ function renderSingleFileModel(model) {
 
 function getFilesForQuantization(model, quantization) {
     // For multi-component models, we need to map quantization to specific files
-    // This is a simplified mapping - in production, this should come from the API
     if (model.architecture === 'single-file') {
         return model.files;
     }
     
     // For multi-component models, try to filter files by quantization suffix
     const quantizationSuffixes = {
-        'Q4': ['_q4.onnx', '_quantized.onnx'],
+        'Q4': ['_q4.onnx'],
         'Q4_MIXED': ['_q4.onnx', '_quantized.onnx'],
-        'Q4_F16': ['_q4_f16.onnx'],
-        'FP16': ['_fp16.onnx', '_16.onnx'],
-        'FP32': ['_fp32.onnx', '_32.onnx'],
+        'Q4_F16': ['_q4f16.onnx', '_q4_f16.onnx'],
+        'FP16': ['_fp16.onnx'],
         'INT8': ['_int8.onnx'],
         'BNB4': ['_bnb4.onnx'],
         'UINT8': ['_uint8.onnx'],
@@ -333,18 +331,36 @@ function getFilesForQuantization(model, quantization) {
     
     const suffixes = quantizationSuffixes[quantization] || [];
     
+    // Special handling for FP32 - match files WITHOUT other quantization suffixes
+    if (quantization === 'FP32') {
+        const otherQuantSuffixes = [
+            '_fp16.onnx', '_int8.onnx', '_uint8.onnx', '_q4.onnx', 
+            '_q4f16.onnx', '_q4_f16.onnx', '_bnb4.onnx', '_quantized.onnx'
+        ];
+        
+        const fp32Files = model.files.filter(file => {
+            const fileLower = file.path.toLowerCase();
+            // Include if it's a base file without quantization suffixes
+            // Base files are like "embed_tokens.onnx", "decoder_model_merged.onnx", etc.
+            return !otherQuantSuffixes.some(suffix => fileLower.includes(suffix.toLowerCase()));
+        });
+        
+        return fp32Files.length > 0 ? fp32Files : [];
+    }
+    
     if (suffixes.length === 0) {
         // If no specific mapping, return all files
         return model.files;
     }
     
     // Filter files that match any of the suffixes
-    const filteredFiles = model.files.filter(file => 
-        suffixes.some(suffix => file.path.toLowerCase().includes(suffix.toLowerCase()))
-    );
+    const filteredFiles = model.files.filter(file => {
+        const fileLower = file.path.toLowerCase();
+        return suffixes.some(suffix => fileLower.includes(suffix.toLowerCase()));
+    });
     
-    // If no files match, return all files (fallback)
-    return filteredFiles.length > 0 ? filteredFiles : model.files;
+    // Only return matched files - no fallback to all files for specific quantizations
+    return filteredFiles;
 }
 
 function toggleModel(modelId) {
