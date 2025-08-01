@@ -42,7 +42,7 @@ class CompareFacesNode:
             "required": {
                 "image_a": ("IMAGE",),
                 "image_b": ("IMAGE",),
-                "api_url": ("STRING", {"default": "http://127.0.0.1:7860/v1/image/compare_faces"}),
+                "api_url": ("STRING", {"default": "http://127.0.0.1:8000/v1/image/compare_faces"}),
                 "threshold": ("FLOAT", {"default": 0.72, "min": 0.0, "max": 1.0}),
             }
         }

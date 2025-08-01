@@ -1,7 +1,7 @@
 # **ComfyAI – LLM-Powered Vision & Text Query Nodes for ComfyUI**  
 
-🚀 **ComfyAI** brings **multimodal AI capabilities** directly into your **ComfyUI workflows** with powerful custom nodes for text and vision inference using state-of-the-art models like **Gemma-3n** and advanced **face recognition**.
-
+🚀 **ComfyAI** brings **multimodal AI capabilities** directly into your **ComfyUI workflows** with powerful custom nodes for text and vision inference using state-of-the-art models like **Gemma-3n** and advanced **face recognition**.<br>
+<br>
 Transform your ComfyUI experience with intelligent image analysis, face comparison, and conditional workflow control - all through simple, drag-and-drop nodes.
 
 ---
@@ -21,7 +21,7 @@ Transform your ComfyUI experience with intelligent image analysis, face comparis
 - **ConditionalSaveImage** – Smart image saving based on boolean conditions
 - Perfect for quality filtering and automated workflows
 
-**All nodes work with any OpenAI-compatible API endpoint** – use local models, cloud services, or the included lightweight ONNX server.
+**All nodes work with any OpenAI-compatible API endpoint** – use local models, cloud services, or the **separate ImageAIServer** for local inference.
 
 ---
 
@@ -37,27 +37,33 @@ pip install -r ComfyAI/requirements.txt
 ### **Basic Usage**
 1. **Restart ComfyUI** to load the new nodes
 2. **Add nodes** from the ComfyAI category in your workflow
-3. **Configure endpoint** (OpenAI API, local server, or included ONNX server)
+3. **Configure endpoint** (OpenAI API, local server, or the ImageAIServer)
 4. **Connect your images/text** and start creating!
 
-### **Optional: Local ONNX Server**
-For privacy and offline use, run the included lightweight server:
-```bash
-# Install server dependencies
-pip install -r ComfyAI/apps/onnx_chat/requirements.txt
-pip install -r ComfyAI/apps/face_api/requirements.txt
+### **Optional: Local Inference with ImageAIServer**
+For privacy and offline use, you can run the **ImageAIServer** as a separate service. This server provides the backend for VLM and face detection features.
 
-# Quick unified server (recommended)
-./deploy.sh build && ./deploy.sh run
+1.  **Clone the ImageAIServer repository:**
+    ```bash
+    git clone https://github.com/mitchins/ImageAIServer.git
+    cd ImageAIServer
+    ```
+2.  **Install server dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Run the server (e.g., using Docker or directly):**
+    ```bash
+    # Using Docker (recommended for ease of setup)
+    docker-compose up --build -d
 
-# Access at: http://localhost:8000/
-# 🌐 Management UI: http://localhost:8000/ui  
-# 🎯 Vision Testing: http://localhost:8000/test
-
-# Or individual services:
-python -m apps.onnx_chat.main    # Chat/vision models
-PRESET=photo uvicorn apps.face_api.main:app  # Face comparison
-```
+    # Or directly (requires manual setup of models)
+    # uvicorn apps.main:app --host 0.0.0.0 --port 8000
+    ```
+4.  **Access the server:**
+    *   **API Endpoint:** `http://localhost:8000/`
+    *   **Management UI:** `http://localhost:8000/ui`  
+    *   **Vision Testing:** `http://localhost:8000/test`
 
 ---
 
@@ -80,7 +86,7 @@ PRESET=photo uvicorn apps.face_api.main:app  # Face comparison
 
 ### **⚡ Performance & Privacy**
 - **Lightweight nodes** with minimal ComfyUI impact
-- **Optional local inference** with included ONNX server
+- **Optional local inference** with ImageAIServer
 - **Efficient model management** with curated model catalog
 - **GPU acceleration support** for fast inference
 
@@ -89,7 +95,7 @@ PRESET=photo uvicorn apps.face_api.main:app  # Face comparison
 ## 📖 **Documentation**
 
 - **[Node Reference](nodes/README.md)** – Complete guide to all available nodes
-- **[Server Setup](apps/README.md)** – Detailed server installation and configuration  
+- **[ImageAIServer Documentation](https://github.com/mitchins/ImageAIServer/blob/main/README.md)** – Detailed server installation and configuration  
 - **[Model Management](docs/UNIFIED_MODEL_MANAGEMENT.md)** – Managing local ONNX models
 
 ---
@@ -117,7 +123,7 @@ All models support **multiple quantization levels** (FP16, Q4, INT8) for optimal
 - **Seamless workflows** connecting AI analysis with image processing
 
 ### **🔒 Privacy-First**
-- **Local inference option** with included ONNX server
+- **Local inference option** with ImageAIServer
 - **No cloud dependency** required for core functionality  
 - **Your data stays local** when using the optional server components
 
@@ -134,7 +140,7 @@ All models support **multiple quantization levels** (FP16, Q4, INT8) for optimal
 ### **ComfyUI Nodes** (`nodes/`)
 Ready-to-use custom nodes for your ComfyUI installation
 
-### **Optional Server Stack** (`apps/`)
+### **ImageAIServer (Separate Project)**
 - **ONNX Chat Server** – Local vision-language model inference
 - **Face API Server** – High-performance face comparison service
 - **Unified Model Manager** – Web-based interface for managing local models

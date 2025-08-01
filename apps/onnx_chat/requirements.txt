@@ -1,5 +1,0 @@
-# ONNX Chat API standalone requirements
-# For running just the ONNX chat service independently
-
-# Full server dependencies (includes ONNX support)
--r ../../requirements-core.txt

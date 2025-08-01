@@ -1,5 +1,0 @@
-# Face API standalone requirements  
-# For running just the face comparison service independently
-
-# Full server dependencies (includes face support)
--r ../../requirements-core.txt

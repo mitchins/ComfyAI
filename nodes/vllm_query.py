@@ -14,7 +14,7 @@ class _BaseVLLMQuery:
     def INPUT_TYPES(cls):
         required = {
             "text_query": ("STRING", {"default": "Describe the image.", "multiline": True}),
-            "api_endpoint": ("STRING", {"default": "", "multiline": False}),
+            "api_endpoint": ("STRING", {"default": "http://127.0.0.1:8000/v1", "multiline": False}), # Default for ImageAIServer
             "api_model": ("STRING", {"default": "gpt-3.5-turbo", "multiline": False}),
             "api_key": ("STRING", {"default": "", "multiline": False}),
         }
