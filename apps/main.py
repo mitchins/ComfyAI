@@ -68,65 +68,150 @@ async def root():
     <style>
         body {{ 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px; margin: 50px auto; padding: 20px;
+            background: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }}
+        
+        .main-container {{ 
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            text-align: center;
+        }}
+        
+        h1 {{ 
+            font-size: 2.5rem; 
+            margin-bottom: 1rem; 
+            color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh; color: white;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }}
-        .container {{ 
-            background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
-            border-radius: 16px; padding: 2rem; text-align: center;
+        
+        .subtitle {{ 
+            color: #666; 
+            font-size: 1.2rem; 
+            margin-bottom: 2rem; 
         }}
-        h1 {{ font-size: 2.5rem; margin-bottom: 1rem; }}
-        .links {{ display: grid; gap: 1rem; margin: 2rem 0; }}
+        
+        .links {{ 
+            display: grid; 
+            gap: 1.5rem; 
+            margin: 2rem 0; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }}
+        
         .link {{ 
-            display: block; padding: 1rem 2rem; background: rgba(255,255,255,0.2);
-            border-radius: 8px; text-decoration: none; color: white;
-            transition: all 0.3s ease; font-size: 1.1rem;
+            display: block; 
+            padding: 1.5rem 2rem; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px; 
+            text-decoration: none; 
+            color: white;
+            transition: all 0.3s ease; 
+            font-size: 1.1rem;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }}
+        
         .link:hover {{ 
-            background: rgba(255,255,255,0.3); transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         }}
+        
+        .link strong {{ 
+            display: block; 
+            font-size: 1.3rem; 
+            margin-bottom: 0.5rem; 
+        }}
+        
+        .link small {{ 
+            opacity: 0.9; 
+            font-size: 1rem; 
+        }}
+        
         .status {{ 
-            margin-top: 2rem; padding: 1rem; background: rgba(0,255,0,0.2);
-            border-radius: 8px; border-left: 4px solid #00ff00;
+            margin-top: 2rem; 
+            padding: 1rem; 
+            background: #d4edda;
+            color: #155724;
+            border-radius: 8px; 
+            border-left: 4px solid #28a745;
+            text-align: left;
         }}
+        
         .api-endpoints {{ 
-            margin-top: 2rem; text-align: left; background: rgba(0,0,0,0.2);
-            padding: 1rem; border-radius: 8px; font-family: monospace;
+            margin-top: 2rem; 
+            text-align: left; 
+            background: #f8f9fa;
+            color: #495057;
+            padding: 1.5rem; 
+            border-radius: 8px; 
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            border: 1px solid #e9ecef;
+        }}
+        
+        .api-endpoints strong {{ 
+            color: #333; 
+            display: block; 
+            margin-bottom: 0.5rem; 
+        }}
+        
+        .endpoint {{ 
+            margin: 0.5rem 0; 
+            padding: 0.3rem 0; 
+            color: #6f42c1; 
+        }}
+        
+        @media (max-width: 768px) {{
+            .main-container {{ 
+                margin: 1rem; 
+                padding: 1.5rem; 
+            }}
+            .links {{ 
+                grid-template-columns: 1fr; 
+            }}
         }}
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🤖 ComfyAI Server</h1>
-        <p>Unified inference server for vision models and face comparison</p>
+    <script src="/static/manage/navigation.js"></script>
+    
+    <div class="main-container">
+        <h1>🤖 Server Status Dashboard</h1>
+        <p class="subtitle">ComfyAI unified inference server monitoring and quick access</p>
         
-        <div class="links">
-            <a href="/manage/ui/" class="link">
-                🌐 <strong>Model Management UI</strong><br>
-                <small>Manage and download models</small>
-            </a>
-            <a href="/manage/ui/vision-test.html" class="link">
-                🎯 <strong>Vision & Face Test UI</strong><br>
-                <small>Drag & drop testing interface</small>
-            </a>
-            <a href="/docs" class="link">
-                📚 <strong>API Documentation</strong><br>
-                <small>Interactive OpenAPI docs</small>
-            </a>
-        </div>
-        
+        <!-- Server Status Section -->
         <div class="status">
             ✅ <strong>Server Status:</strong> Running and healthy
         </div>
         
+        <!-- Quick Actions Section -->
+        <h2 style="margin-top: 2rem; margin-bottom: 1rem; color: #333;">Quick Actions</h2>
+        <div class="links">
+            <a href="/manage/ui/" class="link">
+                🌐 <strong>Model Management</strong>
+                <small>Download and manage ONNX models</small>
+            </a>
+            <a href="/manage/ui/vision-test.html" class="link">
+                🎯 <strong>Vision & Face Testing</strong>
+                <small>Drag & drop testing interface</small>
+            </a>
+            <a href="/docs" class="link">
+                📚 <strong>API Documentation</strong>
+                <small>Interactive OpenAPI docs</small>
+            </a>
+        </div>
+        
+        <!-- API Information Section -->
+        <h2 style="margin-top: 2rem; margin-bottom: 1rem; color: #333;">API Endpoints</h2>
         <div class="api-endpoints">
-            <strong>Key API Endpoints:</strong><br>
-            POST /v1/chat/completions (Vision + text)<br>
-            POST /v1/image/compare_faces (Face comparison)<br>
-            GET /v1/models (List available models)<br>
-            GET /health (Server health check)
+            <div class="endpoint"><strong>POST</strong> /v1/chat/completions <span style="color: #666;">• Vision + text inference</span></div>
+            <div class="endpoint"><strong>POST</strong> /v1/image/compare_faces <span style="color: #666;">• Face comparison</span></div>
+            <div class="endpoint"><strong>GET</strong> /v1/models <span style="color: #666;">• List available models</span></div>
+            <div class="endpoint"><strong>GET</strong> /health <span style="color: #666;">• Server health check</span></div>
         </div>
     </div>
 </body>
@@ -249,6 +334,13 @@ app.mount(
     "/manage/ui",
     StaticFiles(directory=STATIC_DIR, html=True),
     name="manage_ui",
+)
+
+# Mount static files for root access
+app.mount(
+    "/static/manage",
+    StaticFiles(directory=STATIC_DIR),
+    name="static_manage",
 )
 
 

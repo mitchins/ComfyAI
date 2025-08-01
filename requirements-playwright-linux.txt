@@ -1,0 +1,12 @@
+# Linux-specific Playwright dependencies
+# Use this file on Linux systems for CI/CD
+
+# Core Playwright dependencies (same as main file)
+playwright>=1.47.0
+pytest-playwright>=0.6.0  # Supports pytest 8.x
+pytest-html>=4.1.1  # Generate HTML test reports with screenshots
+requests>=2.25.0  # For server health checks
+Pillow>=10.0.0  # Image processing for high-DPI screenshot scaling
+
+# Linux-specific virtual display
+pytest-xvfb>=3.0.0  # Virtual display server for headless Linux

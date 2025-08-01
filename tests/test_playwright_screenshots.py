@@ -10,14 +10,32 @@ import time
 
 # Screenshot configuration
 SCREENSHOT_CONFIG = {
-    # GitHub README optimal resolution
-    "github_readme": {"width": 800, "height": 600},
-    # Documentation pages
-    "docs": {"width": 1200, "height": 900},
-    # Mobile view
-    "mobile": {"width": 375, "height": 667},
-    # Desktop view
+    # GitHub README optimal resolution - render larger for better DPI
+    "github_readme": {
+        "width": 1600, "height": 1200,  # 2x resolution for crisp rendering
+        "scale": 0.5,  # Scale down to 800x600 for final output
+        "device_scale_factor": 2  # High DPI rendering
+    },
+    # Documentation pages - high DPI
+    "docs": {
+        "width": 2400, "height": 1800,  # 2x resolution 
+        "scale": 0.5,  # Scale down to 1200x900
+        "device_scale_factor": 2
+    },
+    # Mobile view - high DPI
+    "mobile": {
+        "width": 750, "height": 1334,  # 2x resolution
+        "scale": 0.5,  # Scale down to 375x667
+        "device_scale_factor": 2
+    },
+    # Desktop view - standard DPI (already high resolution)
     "desktop": {"width": 1920, "height": 1080},
+    # Ultra high quality for print/presentations
+    "print": {
+        "width": 3200, "height": 2400,  # 4x resolution
+        "scale": 0.25,  # Scale down to 800x600
+        "device_scale_factor": 3
+    },
 }
 
 # Default config for most screenshots
@@ -46,7 +64,20 @@ class ScreenshotHelper:
         
     def setup_viewport(self):
         """Set up the viewport with configured dimensions."""
-        self.page.set_viewport_size(self.config)
+        # Handle both simple and high-DPI configs
+        if isinstance(self.config, dict) and "width" in self.config:
+            viewport_config = {
+                "width": self.config["width"],
+                "height": self.config["height"]
+            }
+            # Add device scale factor if specified
+            if "device_scale_factor" in self.config:
+                viewport_config["device_scale_factor"] = self.config["device_scale_factor"]
+            
+            self.page.set_viewport_size(viewport_config)
+        else:
+            # Legacy simple config
+            self.page.set_viewport_size(self.config)
         
     def wait_for_load(self, timeout: int = 5000):
         """Wait for page to fully load."""
@@ -59,9 +90,18 @@ class ScreenshotHelper:
         """Take a screenshot with consistent naming and location."""
         SCREENSHOTS_DIR.mkdir(exist_ok=True)
         
-        # Generate filename with dimensions
-        width, height = self.config["width"], self.config["height"]
-        filename = f"{name}_{width}x{height}.png"
+        # Determine output dimensions and scaling
+        if isinstance(self.config, dict) and "scale" in self.config:
+            # High-DPI config with scaling
+            render_width, render_height = self.config["width"], self.config["height"]
+            output_width = int(render_width * self.config["scale"])
+            output_height = int(render_height * self.config["scale"])
+            filename = f"{name}_{output_width}x{output_height}.png"
+        else:
+            # Simple config
+            render_width, render_height = self.config["width"], self.config["height"]
+            filename = f"{name}_{render_width}x{render_height}.png"
+        
         filepath = SCREENSHOTS_DIR / filename
         
         if element_selector:
@@ -70,10 +110,34 @@ class ScreenshotHelper:
             element.screenshot(path=str(filepath))
         else:
             # Screenshot full page or viewport
-            self.page.screenshot(
-                path=str(filepath),
-                full_page=full_page
-            )
+            screenshot_options = {
+                "path": str(filepath),
+                "full_page": full_page
+            }
+            
+            # Add scaling if needed for high-DPI output
+            if isinstance(self.config, dict) and "scale" in self.config:
+                # Import PIL for resizing
+                from PIL import Image
+                
+                # Take screenshot at high resolution
+                temp_path = filepath.with_suffix('.temp.png')
+                self.page.screenshot(
+                    path=str(temp_path),
+                    full_page=full_page
+                )
+                
+                # Resize to target dimensions
+                with Image.open(temp_path) as img:
+                    output_size = (output_width, output_height)
+                    resized_img = img.resize(output_size, Image.Resampling.LANCZOS)
+                    resized_img.save(filepath, optimize=True, quality=95)
+                
+                # Clean up temp file
+                temp_path.unlink()
+            else:
+                # Standard screenshot
+                self.page.screenshot(**screenshot_options)
             
         print(f"Screenshot saved: {filepath}")
         return filepath
@@ -115,6 +179,7 @@ def multi_resolution_helper(page: Page, request):
     return helper
 
 
+@pytest.mark.screenshot
 class TestMainInterface:
     """Test main application interfaces."""
     
@@ -131,6 +196,7 @@ class TestMainInterface:
         screenshot_helper.take_screenshot("02_swagger_docs", full_page=True)
 
 
+@pytest.mark.screenshot
 class TestModelManagement:
     """Test model management interfaces."""
     
@@ -170,6 +236,7 @@ class TestModelManagement:
             screenshot_helper.take_screenshot("05_model_manager_fallback")
 
 
+@pytest.mark.screenshot
 class TestVisionInterface:
     """Test vision testing interface."""
     
@@ -216,6 +283,7 @@ class TestVisionInterface:
             screenshot_helper.take_screenshot("08_vision_test_basic")
 
 
+@pytest.mark.screenshot
 class TestMultiResolution:
     """Generate screenshots at multiple resolutions."""
     
@@ -236,6 +304,7 @@ class TestMultiResolution:
         multi_resolution_helper.take_screenshot(f"model_manager_{config_name}")
 
 
+@pytest.mark.screenshot
 class TestCustomScreenshots:
     """Custom screenshot configurations."""
     
@@ -252,6 +321,7 @@ class TestCustomScreenshots:
         helper.take_screenshot(f"home_custom_{width}x{height}")
 
 
+@pytest.mark.screenshot
 @pytest.mark.skip(reason="Only run when server is available")
 class TestServerRequired:
     """Tests that require the server to be running."""

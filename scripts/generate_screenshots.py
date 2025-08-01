@@ -44,6 +44,13 @@ CONFIGURATIONS = {
         "tests": [
             "tests/test_playwright_screenshots.py::TestCustomScreenshots",
         ]
+    },
+    "print_quality": {
+        "description": "Ultra high-quality for presentations",
+        "tests": [
+            "tests/test_playwright_screenshots.py::TestMultiResolution::test_home_page_all_resolutions[print]",
+            "tests/test_playwright_screenshots.py::TestMultiResolution::test_model_manager_all_resolutions[print]",
+        ]
     }
 }
 
@@ -58,7 +65,10 @@ def check_server_running(base_url: str = "http://localhost:8000") -> bool:
 
 def setup_playwright():
     """Install Playwright browsers if needed."""
+    import platform
+    
     try:
+        # Install Chromium browser
         result = subprocess.run(
             ["playwright", "install", "chromium"], 
             capture_output=True, 
@@ -66,7 +76,19 @@ def setup_playwright():
             check=True
         )
         print("✅ Playwright browsers installed successfully")
+        
+        # Platform-specific setup info
+        system = platform.system().lower()
+        if system == "linux":
+            print("ℹ️  Linux detected: pytest-xvfb will be used for headless testing")
+            print("   If running on a headless server, consider using --xvfb flag")
+        elif system == "darwin":
+            print("ℹ️  macOS detected: Native headless support enabled")
+        elif system == "windows":
+            print("ℹ️  Windows detected: Native headless support enabled")
+            
         return True
+        
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to install Playwright browsers: {e}")
         print(f"STDOUT: {e.stdout}")
@@ -78,6 +100,7 @@ def setup_playwright():
 
 def run_screenshot_tests(config_name: str, verbose: bool = False, server_check: bool = True):
     """Run screenshot tests for the specified configuration."""
+    import platform
     
     if config_name not in CONFIGURATIONS:
         print(f"❌ Unknown configuration: {config_name}")
@@ -102,6 +125,16 @@ def run_screenshot_tests(config_name: str, verbose: bool = False, server_check: 
     pytest_args.extend(["-v"] if verbose else [])
     pytest_args.extend(["--tb=short"])  # Shorter tracebacks
     
+    # Add platform-specific flags
+    system = platform.system().lower()
+    print(f"🖥️  Detected platform: {system}")
+    if system == "linux":
+        # Use xvfb on Linux for headless environments
+        pytest_args.append("--xvfb")
+        print("ℹ️  Using virtual display (xvfb) for Linux headless testing")
+    else:
+        print("ℹ️  Using native headless support")
+    
     try:
         result = subprocess.run(pytest_args, check=True)
         print("✅ Screenshots generated successfully!")
@@ -119,6 +152,11 @@ def run_screenshot_tests(config_name: str, verbose: bool = False, server_check: 
         
     except subprocess.CalledProcessError as e:
         print(f"❌ Screenshot generation failed with exit code: {e.returncode}")
+        if system == "linux":
+            print("💡 Linux troubleshooting:")
+            print("   - Ensure xvfb is installed: sudo apt-get install xvfb")
+            print("   - Check display environment variables")
+            print("   - Try running with --headed flag for debugging")
         return False
 
 def clean_screenshots():

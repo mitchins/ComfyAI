@@ -28,6 +28,11 @@
         
         const navStyles = `
             <style>
+                body {
+                    background: #f8f9fa !important;
+                    margin: 0;
+                    padding: 0;
+                }
                 .comfyai-nav {
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -109,20 +114,39 @@
                     margin-top: 2rem;
                 }
                 
-                /* Integration with vision-test.html custom styling */
-                .comfyai-nav + .container {
+                /* Professional content styling */
+                .main-content {
+                    max-width: 1200px;
+                    margin: 2rem auto;
+                    padding: 0 1rem;
+                }
+                .main-container {
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    padding: 2rem;
+                    margin-bottom: 2rem;
+                }
+                
+                /* Integration with all page types */
+                .comfyai-nav + .container,
+                .comfyai-nav + .main-container {
                     margin-top: 0;
                 }
-                .comfyai-nav + .container .header {
+                .comfyai-nav + .container .header,
+                .comfyai-nav + .main-container .page-header {
                     border-radius: 0;
+                    margin-top: 0;
                 }
             </style>
         `;
         
-        // Insert navigation at the beginning of body
-        document.head.insertAdjacentHTML('beforeend', navStyles);
-        document.body.insertAdjacentHTML('afterbegin', navHTML);
-        document.body.classList.add('has-nav');
+        // Insert navigation at the beginning of body (only if not already present)
+        if (!document.querySelector('.comfyai-nav')) {
+            document.head.insertAdjacentHTML('beforeend', navStyles);
+            document.body.insertAdjacentHTML('afterbegin', navHTML);
+            document.body.classList.add('has-nav');
+        }
         
         // Highlight current page
         highlightCurrentPage();

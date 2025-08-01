@@ -11,29 +11,36 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f8f9fa;
             min-height: 100vh;
-            padding: 20px;
+            margin: 0;
+            padding: 0;
         }
-        .container {
+        .main-container {
             max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
+            margin: 2rem auto;
+            padding: 0 2rem;
         }
-        .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
+        .page-header {
+            background: white;
             padding: 2rem;
             text-align: center;
+            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 0;
         }
-        .header h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
-        .header p { opacity: 0.9; font-size: 1.1rem; }
+        .page-header h1 { 
+            font-size: 2rem; 
+            margin-bottom: 0.5rem; 
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .page-header p { color: #666; font-size: 1.1rem; }
         .tabs {
             display: flex;
-            background: #f8f9fa;
+            background: white;
             border-bottom: 1px solid #e9ecef;
         }
         .tab-button {
@@ -53,6 +60,7 @@
             border-bottom: 3px solid #4facfe;
         }
         .tab-content {
+            background: white;
             padding: 2rem;
             display: none;
         }
@@ -204,9 +212,11 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🤖 ComfyAI Vision & Face Test</h1>
+    <script src="navigation.js"></script>
+    
+    <div class="main-container">
+        <div class="page-header">
+            <h1>🎯 Vision & Face Testing</h1>
             <p>Test vision-language models and face comparison APIs with drag & drop</p>
         </div>
         

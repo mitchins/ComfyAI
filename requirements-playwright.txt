@@ -1,7 +1,12 @@
 # Playwright testing dependencies for screenshot generation
-playwright==1.40.0
-pytest-playwright==0.4.3
+# Core dependencies that work on all platforms (macOS, Windows, Linux)
+playwright>=1.47.0
+pytest-playwright>=0.6.0  # Supports pytest 8.x
 
 # Additional testing utilities
-pytest-xvfb==3.0.0  # For headless testing on Linux
-pytest-html==4.1.1  # Generate HTML test reports with screenshots
+pytest-html>=4.1.1  # Generate HTML test reports with screenshots
+requests>=2.25.0  # For server health checks
+Pillow>=10.0.0  # Image processing for high-DPI screenshot scaling
+
+# Note: For Linux CI/CD, use requirements-playwright-linux.txt instead
+# which includes pytest-xvfb for virtual display support
